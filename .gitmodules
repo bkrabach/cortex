@@ -7,3 +7,6 @@
 [submodule "amplifier-foundation"]
 	path = amplifier-foundation
 	url = https://github.com/microsoft/amplifier-foundation.git
+[submodule "amplifier-bundle-attention-firewall"]
+	path = amplifier-bundle-attention-firewall
+	url = https://github.com/bkrabach/amplifier-bundle-attention-firewall.git
