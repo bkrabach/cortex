@@ -10,3 +10,6 @@
 [submodule "amplifier-bundle-attention-firewall"]
 	path = amplifier-bundle-attention-firewall
 	url = https://github.com/bkrabach/amplifier-bundle-attention-firewall.git
+[submodule "amplifier-app-server"]
+	path = amplifier-app-server
+	url = https://github.com/bkrabach/amplifier-app-server.git
