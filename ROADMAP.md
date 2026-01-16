@@ -165,8 +165,8 @@ Each device registers with the hub declaring its capabilities:
 
 ```yaml
 device:
-  id: "ALIENWARE-R13"
-  name: "Brian's Desktop"
+  id: "DEVICE-001"
+  name: "User's Desktop"
   platform: windows
   capabilities:
     - notifications:listen
@@ -214,13 +214,13 @@ The Attention Firewall will have an AGENTS.md-style config managed by the Cortex
 # attention-firewall-config.yaml
 
 user:
-  name: Brian Krabach
-  aliases: [Brian, bkrabach, brkrabac]
+  name: User Name
+  aliases: [username, user]
 
 vip_senders:
-  - Kevin Scott
-  - Sam Schillace
-  - Charlie Krabach  # family
+  - Executive-1
+  - Executive-2
+  - Family Member
 
 apps:
   WhatsApp:
@@ -251,7 +251,7 @@ schedule:
 current_instructions: |
   I'm heads down until noon working on the Cortex platform.
   Only interrupt me for:
-  - Messages from Charlie (family)
+  - Messages from family members
   - Anything mentioning "production" or "outage"
   At noon, send me a summary and remind me to take a break.
 ```
