@@ -88,7 +88,7 @@ cortex/                              # This workspace
 cd amplifier-app-server
 uv venv && source .venv/bin/activate
 uv pip install -e .
-amplifier-server run --port 8420
+amplifier-server run --port 19420
 ```
 
 ### Client (Windows)
@@ -97,7 +97,7 @@ amplifier-server run --port 8420
 cd amplifier-bundle-attention-firewall
 uv venv && .venv\Scripts\activate
 uv pip install -e .
-attention-firewall client --server http://your-server:8420
+attention-firewall client --server http://your-server:19420
 ```
 
 ## Architecture
