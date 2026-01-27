@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cortex - From Vision to Working System</title>
+    <style>
+        :root {
+            --accent-color: #0A84FF;
+            --accent-secondary: #5E5CE6;
+            --success-color: #30D158;
+            --warning-color: #FF9F0A;
+            --danger-color: #FF6B6B;
+            
+            --font-headline: clamp(32px, 8vw, 72px);
+            --font-medium-headline: clamp(24px, 5vw, 48px);
+            --font-subhead: clamp(16px, 3vw, 32px);
+            --font-body: clamp(14px, 2vw, 20px);
+            --font-small: clamp(12px, 1.5vw, 16px);
+            --font-big-number: clamp(60px, 20vw, 180px);
+            
+            --padding-slide: clamp(20px, 5vw, 80px);
+            --gap-grid: clamp(16px, 3vw, 40px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
+        .deck {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: var(--padding-slide);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .section-label {
+            font-size: clamp(12px, 1.5vw, 14px);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--accent-color);
+            margin-bottom: 16px;
+        }
+
+        .headline {
+            font-size: var(--font-headline);
+            font-weight: 700;
+            letter-spacing: -2px;
+            line-height: 1.1;
+            margin-bottom: 24px;
+        }
+
+        .subhead {
+            font-size: var(--font-subhead);
+            font-weight: 400;
+            color: rgba(255,255,255,0.7);
+            line-height: 1.4;
+            max-width: 900px;
+        }
+
+        .medium-headline {
+            font-size: var(--font-medium-headline);
+            font-weight: 600;
+            letter-spacing: -1px;
+            line-height: 1.2;
+            margin-bottom: 20px;
+        }
+
+        .body-text {
+            font-size: var(--font-body);
+            line-height: 1.6;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .big-number {
+            font-size: var(--font-big-number);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        /* Grid layouts */
+        .thirds {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+            gap: var(--gap-grid);
+            margin-top: 40px;
+        }
+
+        .split {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
+            gap: var(--gap-grid);
+            align-items: center;
+        }
+
+        .four-col {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+            gap: var(--gap-grid);
+            margin-top: 40px;
+        }
+
+        /* Cards */
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: clamp(12px, 2vw, 16px);
+            padding: clamp(16px, 4vw, 28px);
+        }
+
+        .card-title {
+            font-size: clamp(16px, 2.5vw, 24px);
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .card-desc {
+            font-size: var(--font-small);
+            color: rgba(255,255,255,0.6);
+            line-height: 1.5;
+        }
+
+        .card-icon {
+            font-size: clamp(32px, 5vw, 48px);
+            margin-bottom: 16px;
+        }
+
+        /* Code blocks */
+        .code-block {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: clamp(12px, 3vw, 20px) clamp(16px, 4vw, 28px);
+            font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: clamp(11px, 1.5vw, 15px);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .code-block .keyword { color: #FF7AB2; }
+        .code-block .string { color: #FF8170; }
+        .code-block .comment { color: rgba(255,255,255,0.4); }
+        .code-block .function { color: #78C2B3; }
+        .code-block .code { color: #78C2B3; }
+
+        /* Flow diagrams */
+        .flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin: 40px 0;
+        }
+
+        .flow-step {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 16px 24px;
+            text-align: center;
+            min-width: 140px;
+        }
+
+        .flow-step.highlight {
+            background: rgba(10, 132, 255, 0.2);
+            border-color: var(--accent-color);
+        }
+
+        .flow-arrow {
+            font-size: 24px;
+            color: rgba(255,255,255,0.4);
+        }
+
+        /* Architecture diagram */
+        .arch-diagram {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: clamp(20px, 4vw, 40px);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: clamp(10px, 1.2vw, 14px);
+            line-height: 1.4;
+            white-space: pre;
+            overflow-x: auto;
+            text-align: center;
+        }
+
+        /* Quote */
+        .quote {
+            font-size: clamp(20px, 4vw, 36px);
+            font-style: italic;
+            color: rgba(255,255,255,0.9);
+            border-left: 4px solid var(--accent-color);
+            padding-left: 24px;
+            margin: 40px 0;
+            line-height: 1.4;
+        }
+
+        .quote-source {
+            font-size: var(--font-small);
+            color: rgba(255,255,255,0.5);
+            font-style: normal;
+            margin-top: 16px;
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+            gap: var(--gap-grid);
+            margin-top: 40px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: clamp(48px, 10vw, 96px);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-color), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        .stat-label {
+            font-size: var(--font-small);
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 8px;
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            margin: 40px 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 32px;
+            align-items: flex-start;
+        }
+
+        .timeline-marker {
+            width: 48px;
+            height: 48px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .timeline-content h3 {
+            font-size: clamp(18px, 3vw, 24px);
+            margin-bottom: 8px;
+        }
+
+        .timeline-content p {
+            color: rgba(255,255,255,0.6);
+            font-size: var(--font-small);
+        }
+
+        /* Decision flow */
+        .decision-tree {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        .decision-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .decision-box {
+            padding: 16px 24px;
+            border-radius: 12px;
+            font-size: var(--font-small);
+            min-width: 140px;
+            text-align: center;
+        }
+
+        .decision-box.push {
+            background: rgba(48, 209, 88, 0.2);
+            border: 1px solid var(--success-color);
+            color: var(--success-color);
+        }
+
+        .decision-box.summarize {
+            background: rgba(255, 159, 10, 0.2);
+            border: 1px solid var(--warning-color);
+            color: var(--warning-color);
+        }
+
+        .decision-box.suppress {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.6);
+        }
+
+        .decision-box.defer {
+            background: rgba(10, 132, 255, 0.2);
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        /* Triage actions */
+        .triage-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin: 32px 0;
+        }
+
+        .triage-btn {
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: clamp(14px, 2vw, 18px);
+            font-weight: 600;
+        }
+
+        .triage-btn.deal {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .triage-btn.ignore {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .triage-btn.handled {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.6);
+        }
+
+        /* Navigation */
+        .nav-dots {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .nav-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-dot.active {
+            background: var(--accent-color);
+            transform: scale(1.2);
+        }
+
+        .nav-dot:hover {
+            background: rgba(255,255,255,0.6);
+        }
+
+        .slide-counter {
+            position: fixed;
+            bottom: 24px;
+            right: 32px;
+            font-size: 14px;
+            color: rgba(255,255,255,0.4);
+            z-index: 100;
+        }
+
+        /* Title slide special */
+        .title-slide {
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .title-slide .headline {
+            font-size: clamp(40px, 10vw, 96px);
+        }
+
+        .date-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 20px;
+            border-radius: 100px;
+            font-size: var(--font-small);
+            color: rgba(255,255,255,0.6);
+            margin-top: 24px;
+        }
+
+        /* Story slide */
+        .story-box {
+            background: linear-gradient(135deg, rgba(10, 132, 255, 0.1), rgba(94, 92, 230, 0.1));
+            border: 1px solid rgba(10, 132, 255, 0.3);
+            border-radius: 16px;
+            padding: clamp(24px, 5vw, 40px);
+            margin: 32px 0;
+        }
+
+        .story-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* Centered content */
+        .centered {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* List styling */
+        .feature-list {
+            list-style: none;
+            margin: 24px 0;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+            font-size: var(--font-body);
+        }
+
+        .feature-list li::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-color);
+            border-radius: 50%;
+            margin-top: 8px;
+            flex-shrink: 0;
+        }
+
+        /* CTA */
+        .cta-button {
+            display: inline-block;
+            background: var(--accent-color);
+            color: white;
+            padding: 16px 48px;
+            border-radius: 12px;
+            font-size: clamp(16px, 2vw, 20px);
+            font-weight: 600;
+            text-decoration: none;
+            margin-top: 32px;
+            transition: transform 0.2s ease;
+        }
+
+        .cta-button:hover {
+            transform: scale(1.05);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .split {
+                grid-template-columns: 1fr;
+            }
+            
+            .arch-diagram {
+                font-size: 9px;
+            }
+            
+            .flow {
+                flex-direction: column;
+            }
+            
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* Highlight text */
+        .highlight {
+            color: var(--accent-color);
+        }
+
+        .highlight-success {
+            color: var(--success-color);
+        }
+
+        /* Emoji sizing */
+        .emoji-large {
+            font-size: 64px;
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="deck">
+        <!-- Slide 1: Title -->
+        <div class="slide active title-slide" data-slide="1">
+            <div class="section-label">Cortex Platform</div>
+            <h1 class="headline">From Vision to<br>Working System</h1>
+            <p class="subhead">Your Personal AI Attention Manager</p>
+            <div class="date-badge">January 2026</div>
+        </div>
+
+        <!-- Slide 2: The Problem -->
+        <div class="slide" data-slide="2">
+            <div class="section-label">The Problem</div>
+            <h1 class="headline">Notification Overload</h1>
+            <div class="thirds">
+                <div class="card">
+                    <div class="card-icon">63</div>
+                    <div class="card-title">Average daily notifications</div>
+                    <div class="card-desc">Each one demands a micro-decision: read now? ignore? deal with later?</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">23%</div>
+                    <div class="card-title">Actually matter</div>
+                    <div class="card-desc">The rest are noise - but you can't know until you've already been interrupted.</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">$$$</div>
+                    <div class="card-title">Attention tax</div>
+                    <div class="card-desc">Miss the important ones and it's costly. Get interrupted by noise and you lose focus.</div>
+                </div>
+            </div>
+            <p class="quote" style="margin-top: 48px;">"Most notifications are noise, but missing the important ones is costly."</p>
+        </div>
+
+        <!-- Slide 3: The Vision -->
+        <div class="slide" data-slide="3">
+            <div class="section-label">March 2025</div>
+            <h1 class="headline">The Vision</h1>
+            <div class="split">
+                <div>
+                    <p class="body-text" style="margin-bottom: 24px;">A personal AI assistant that manages attention across all devices. Not just a chatbot - a <span class="highlight">central intelligence</span> that understands what matters to you.</p>
+                    <ul class="feature-list">
+                        <li>Central "Cortex Core" that orchestrates everything</li>
+                        <li>Domain Expert Entities - specialized autonomous agents</li>
+                        <li>Multi-device I/O - route to wherever you are</li>
+                        <li>Progressive autonomy - learns before it acts</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <div class="card-title">Core Concepts</div>
+                    <div class="code-block"><span class="comment">// The Cortex Core is the "brain"</span>
+<span class="keyword">Cortex</span> {
+  <span class="function">route</span>(task) -> Domain Expert
+  <span class="function">surface</span>(info) -> Right Device
+  <span class="function">learn</span>(feedback) -> Better Decisions
+}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Architecture Overview -->
+        <div class="slide" data-slide="4">
+            <div class="section-label">Architecture</div>
+            <h1 class="headline">Hub + Clients</h1>
+            <div class="arch-diagram">
+                              CORTEX HUB (Server - Ubuntu)
+    +----------------------------------------------------------+
+    |                                                          |
+    |   +------------------+    +------------------+           |
+    |   |   Cortex Core    |    |    Device        |           |
+    |   |  (Orchestrator)  |    |    Registry      |           |
+    |   +--------+---------+    +--------+---------+           |
+    |            |                       |                     |
+    |   +--------+---------+-------------+----------+          |
+    |   |                  |                        |          |
+    |   v                  v                        v          |
+    |   Attention     Email Manager         Future Experts     |
+    |   Firewall       (planned)                               |
+    +----------------------------------------------------------+
+                            |
+          +-----------------+-----------------+
+          |                 |                 |
+          v                 v                 v
+      Windows           Android           Web UI
+      Client           (future)           
+            </div>
+        </div>
+
+        <!-- Slide 5: Attention Firewall -->
+        <div class="slide" data-slide="5">
+            <div class="section-label">Domain Expert #1</div>
+            <h1 class="headline">Attention Firewall</h1>
+            <p class="subhead">The first working domain expert - intercepts notifications before they reach you.</p>
+            <div class="thirds" style="margin-top: 32px;">
+                <div class="card">
+                    <div class="card-icon">&#x1F4E5;</div>
+                    <div class="card-title">Capture</div>
+                    <div class="card-desc">Windows client uses pywinrt to capture ALL notifications before they display</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F9E0;</div>
+                    <div class="card-title">Score</div>
+                    <div class="card-desc">LLM analyzes content, sender, context. Assigns relevance score (0-1)</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x2696;</div>
+                    <div class="card-title">Decide</div>
+                    <div class="card-desc">Push immediately? Suppress? Save for summary? Defer for triage?</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Decision Flow -->
+        <div class="slide" data-slide="6">
+            <div class="section-label">How It Works</div>
+            <h1 class="headline">The Decision Flow</h1>
+            <div class="flow">
+                <div class="flow-step">Notification<br>Arrives</div>
+                <span class="flow-arrow">&#x2192;</span>
+                <div class="flow-step">Extract<br>Sender + Content</div>
+                <span class="flow-arrow">&#x2192;</span>
+                <div class="flow-step highlight">LLM<br>Scores (0-1)</div>
+                <span class="flow-arrow">&#x2192;</span>
+                <div class="flow-step">Apply<br>Decision</div>
+            </div>
+            <div class="decision-tree">
+                <div class="decision-row">
+                    <div class="decision-box push">score >= 0.7<br><strong>PUSH</strong><br>Interrupt now</div>
+                    <div class="decision-box defer">0.3 <= score < 0.7<br><strong>DEFER</strong><br>Queue for triage</div>
+                    <div class="decision-box suppress">score < 0.3<br><strong>SUPPRESS</strong><br>Silent log only</div>
+                </div>
+            </div>
+            <p class="body-text centered" style="margin-top: 32px; color: rgba(255,255,255,0.6);">VIP senders bypass scoring - always push immediately</p>
+        </div>
+
+        <!-- Slide 7: Multi-Device Support -->
+        <div class="slide" data-slide="7">
+            <div class="section-label">Cross-Platform</div>
+            <h1 class="headline">Multi-Device Support</h1>
+            <div class="split">
+                <div>
+                    <p class="body-text" style="margin-bottom: 24px;">Devices register capabilities. The hub routes to wherever you're active.</p>
+                    <div class="code-block"><span class="comment"># Device Registration</span>
+device:
+  id: "BRIAN-DESKTOP"
+  platform: windows
+  capabilities:
+    - notifications:listen
+    - notifications:display
+    - screen:display
+    - input:keyboard
+    - audio:output
+    
+<span class="comment"># Smart Routing</span>
+<span class="keyword">if</span> desktop_active:
+    push_to_desktop()
+<span class="keyword">elif</span> mobile_active:
+    push_to_mobile()
+<span class="keyword">else</span>:
+    queue_for_next_active()</div>
+                </div>
+                <div class="thirds" style="margin-top: 0;">
+                    <div class="card" style="border-color: var(--success-color);">
+                        <div class="card-icon">&#x1F4BB;</div>
+                        <div class="card-title">Windows</div>
+                        <div class="card-desc highlight-success">Working</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-icon">&#x1F310;</div>
+                        <div class="card-title">Web UI</div>
+                        <div class="card-desc highlight-success">Working</div>
+                    </div>
+                    <div class="card" style="opacity: 0.5;">
+                        <div class="card-icon">&#x1F4F1;</div>
+                        <div class="card-title">Android</div>
+                        <div class="card-desc">Planned</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Web UI & Design System -->
+        <div class="slide" data-slide="8">
+            <div class="section-label">Phase 3</div>
+            <h1 class="headline">Web UI & Design System</h1>
+            <div class="split">
+                <div>
+                    <ul class="feature-list">
+                        <li>Chat interface for conversational interaction</li>
+                        <li>Dashboard showing service status and devices</li>
+                        <li>Admin panel for user management</li>
+                        <li>JWT + API key authentication</li>
+                        <li>Complete design system with tokens & components</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <div class="card-title">Design Tokens</div>
+                    <div class="code-block"><span class="comment">/* Cortex Design System */</span>
+--color-primary: #5155e6;
+--color-success: #30d158;
+--color-warning: #ff9f0a;
+--color-danger: #ff6b6b;
+
+--font-family-sans: -apple-system, 
+  BlinkMacSystemFont, 'SF Pro'...
+
+--spacing-4: 1rem;
+--radius-md: 0.375rem;
+--shadow-md: 0 4px 6px...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 9: The Serendipity Moment -->
+        <div class="slide" data-slide="9">
+            <div class="section-label">The Breakthrough</div>
+            <h1 class="headline">A Happy Accident</h1>
+            <div class="story-box">
+                <div class="story-icon">&#x1F4A1;</div>
+                <p class="body-text" style="font-size: clamp(16px, 2.5vw, 24px); line-height: 1.6;">
+                    During testing, an unrelated notification arrived <strong>4 minutes before a meeting</strong>. 
+                    The system dismissed it appropriately, but then - <em>used the opportunity</em> to remind me about the upcoming meeting.
+                </p>
+                <p class="body-text" style="margin-top: 24px; color: rgba(255,255,255,0.6);">
+                    This serendipitous behavior inspired the <span class="highlight">always-on scheduler</span> design.
+                    What if Cortex didn't just react - but proactively surveyed state and took action?
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 10: Phase 1 Complete -->
+        <div class="slide centered" data-slide="10">
+            <div class="section-label">Today</div>
+            <h1 class="headline">Phase 1 Complete</h1>
+            <h2 class="medium-headline" style="color: var(--accent-color);">Triage System</h2>
+            <p class="subhead" style="max-width: 700px;">Non-critical notifications no longer vanish. They accumulate for review at a good time.</p>
+        </div>
+
+        <!-- Slide 11: How Triage Works -->
+        <div class="slide" data-slide="11">
+            <div class="section-label">User Experience</div>
+            <h1 class="headline">The Triage Triple</h1>
+            <p class="subhead">Every queued item gets one of three responses:</p>
+            <div class="triage-actions">
+                <div class="triage-btn deal">Deal with</div>
+                <div class="triage-btn ignore">Ignore</div>
+                <div class="triage-btn handled">Already handled</div>
+            </div>
+            <div class="thirds">
+                <div class="card">
+                    <div class="card-title">Deal with</div>
+                    <div class="card-desc">Opens pre-drafted responses and suggested actions. System learns this was important.</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Ignore</div>
+                    <div class="card-desc">Dismisses the item. System learns to suppress similar notifications in the future.</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Already handled</div>
+                    <div class="card-desc">Marks complete without affecting learning. You dealt with it outside Cortex.</div>
+                </div>
+            </div>
+            <p class="body-text centered" style="margin-top: 32px; color: rgba(255,255,255,0.5);">
+                Optional feedback on any action helps steer future decisions
+            </p>
+        </div>
+
+        <!-- Slide 12: Always-On Scheduler -->
+        <div class="slide" data-slide="12">
+            <div class="section-label">Cortex Core</div>
+            <h1 class="headline">The Always-On Scheduler</h1>
+            <div class="split">
+                <div>
+                    <p class="body-text" style="margin-bottom: 24px;">CortexScheduler wakes up periodically, surveys state, and takes action.</p>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-marker">15m</div>
+                            <div class="timeline-content">
+                                <h3>Default Wake-up</h3>
+                                <p>Check pending triage, upcoming calendar, domain expert state</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker">1m</div>
+                            <div class="timeline-content">
+                                <h3>After Action</h3>
+                                <p>If something happened, wake sooner to check for follow-up</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-marker">1h</div>
+                            <div class="timeline-content">
+                                <h3>When Idle</h3>
+                                <p>Nothing happening? Lengthen interval to save resources</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Self-Set Alarms</div>
+                    <div class="code-block"><span class="comment"># Cortex can schedule its own wake-ups</span>
+{
+  "wake_at": "2026-01-27T10:00:00Z",
+  "reason": "Meeting in 5 min",
+  "source": "calendar"
+}
+
+<span class="comment"># External triggers also work</span>
+notification_watcher.set_alarm(
+  when=meeting_start - 5min,
+  reason="Pre-meeting reminder"
+)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 13: What We Built -->
+        <div class="slide" data-slide="13">
+            <div class="section-label">Tech Summary</div>
+            <h1 class="headline">What We Built</h1>
+            <div class="stats-grid">
+                <div class="stat">
+                    <div class="stat-value">2</div>
+                    <div class="stat-label">Repos</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">5</div>
+                    <div class="stat-label">Vision Docs</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">Phases</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">1</div>
+                    <div class="stat-label">Working Expert</div>
+                </div>
+            </div>
+            <div class="thirds" style="margin-top: 48px;">
+                <div class="card">
+                    <div class="card-title">amplifier-app-server</div>
+                    <div class="card-desc">Cortex Hub - FastAPI server with notification processing, device registry, web UI, authentication</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">attention-firewall</div>
+                    <div class="card-desc">Windows client + bundle - pywinrt capture, server communication, toast display</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Design System</div>
+                    <div class="card-desc">Complete token system, component specs, accessibility standards, brand voice</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 14: What's Next -->
+        <div class="slide" data-slide="14">
+            <div class="section-label">Roadmap</div>
+            <h1 class="headline">What's Next</h1>
+            <div class="four-col">
+                <div class="card">
+                    <div class="card-icon">&#x1F4F1;</div>
+                    <div class="card-title">Phase 2</div>
+                    <div class="card-desc">Triage UI - the frontend to review accumulated items</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F9E0;</div>
+                    <div class="card-title">Cortex Core</div>
+                    <div class="card-desc">Long-running orchestrator with full awareness</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F4E7;</div>
+                    <div class="card-title">Email Manager</div>
+                    <div class="card-desc">Next domain expert - email handling and drafting</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F4C5;</div>
+                    <div class="card-title">Calendar</div>
+                    <div class="card-desc">Calendar awareness for proactive reminders</div>
+                </div>
+            </div>
+            <p class="quote" style="margin-top: 48px; border-color: var(--success-color);">
+                "Domain experts operate autonomously - like highly skilled specialists that can understand a high-level request, figure out the best approach, and execute independently."
+                <span class="quote-source">- Cortex Vision Document, March 2025</span>
+            </p>
+        </div>
+
+        <!-- Slide 15: Demo / Try It -->
+        <div class="slide centered" data-slide="15">
+            <div class="emoji-large">&#x1F680;</div>
+            <h1 class="headline">Try It</h1>
+            <div class="code-block" style="text-align: left; max-width: 600px; margin: 32px auto;">
+<span class="comment"># Server (Linux/WSL)</span>
+cd amplifier-app-server
+uv venv && source .venv/bin/activate
+amplifier-server run --port 19420
+
+<span class="comment"># Client (Windows)</span>
+cd amplifier-bundle-attention-firewall
+attention-firewall client --server http://server:19420</div>
+            <div class="thirds" style="max-width: 800px; margin: 32px auto;">
+                <div class="card">
+                    <div class="card-title">GitHub</div>
+                    <div class="card-desc">bkrabach/amplifier-app-server<br>bkrabach/amplifier-bundle-attention-firewall</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Built On</div>
+                    <div class="card-desc">Amplifier ecosystem<br>github.com/microsoft/amplifier</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="nav-dots" id="navDots"></div>
+    <div class="slide-counter" id="slideCounter">1 / 15</div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        let currentSlide = 0;
+
+        // Create nav dots
+        const navDots = document.getElementById('navDots');
+        for (let i = 0; i < totalSlides; i++) {
+            const dot = document.createElement('div');
+            dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+            dot.addEventListener('click', () => goToSlide(i));
+            navDots.appendChild(dot);
+        }
+
+        function updateSlide() {
+            slides.forEach((slide, index) => {
+                slide.classList.toggle('active', index === currentSlide);
+            });
+            
+            document.querySelectorAll('.nav-dot').forEach((dot, index) => {
+                dot.classList.toggle('active', index === currentSlide);
+            });
+            
+            document.getElementById('slideCounter').textContent = 
+                `${currentSlide + 1} / ${totalSlides}`;
+        }
+
+        function goToSlide(index) {
+            currentSlide = Math.max(0, Math.min(index, totalSlides - 1));
+            updateSlide();
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowRight':
+                case 'ArrowDown':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    e.preventDefault();
+                    prevSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    goToSlide(0);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    goToSlide(totalSlides - 1);
+                    break;
+            }
+        });
+
+        // Click navigation (left/right halves of screen)
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.nav-dot')) return;
+            
+            const x = e.clientX;
+            const width = window.innerWidth;
+            
+            if (x < width / 3) {
+                prevSlide();
+            } else if (x > width * 2 / 3) {
+                nextSlide();
+            }
+        });
+
+        // Touch swipe support
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            const diff = touchStartX - touchEndX;
+            
+            if (Math.abs(diff) > 50) {
+                if (diff > 0) {
+                    nextSlide();
+                } else {
+                    prevSlide();
+                }
+            }
+        });
+
+        // Initialize
+        updateSlide();
+    </script>
+</body>
+</html>

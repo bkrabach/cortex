@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Cortex · Built with Amplifier</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-dark: #000;
+            --bg-slide: #0a0a0a;
+            --bg-card: #141414;
+            --border: #2a2a2a;
+            --text-primary: #fff;
+            --text-secondary: #a1a1a6;
+            --text-dim: #6e6e73;
+            --accent: #2997ff;
+            --accent-secondary: #64d2ff;
+            --gradient-1: #667eea;
+            --gradient-2: #764ba2;
+            --success: #30d158;
+            --warning: #ff9f0a;
+            --pink: #ff375f;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+            min-height: 100dvh;
+            width: 100vw;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .presentation {
+            min-height: 100vh;
+            min-height: 100dvh;
+            width: 100%;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: clamp(60px, 10vw, 120px) clamp(16px, 4vw, 80px) clamp(80px, 12vw, 100px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s ease;
+            background: var(--bg-slide);
+            text-align: center;
+            z-index: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .slide.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .slide.center {
+            justify-content: center;
+        }
+        
+        /* Typography */
+        .title-massive {
+            font-size: clamp(56px, 10vw, 120px);
+            font-weight: 700;
+            letter-spacing: -0.04em;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .headline {
+            font-size: clamp(40px, 6vw, 72px);
+            font-weight: 600;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            max-width: 1000px;
+        }
+        
+        .headline-medium {
+            font-size: clamp(32px, 4vw, 48px);
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+        
+        .subhead {
+            font-size: clamp(20px, 2.5vw, 28px);
+            font-weight: 400;
+            color: var(--text-secondary);
+            margin-top: 20px;
+            max-width: 800px;
+        }
+        
+        .tagline {
+            font-size: clamp(14px, 2.5vw, 18px);
+            font-weight: 500;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 16px;
+        }
+        
+        .small-text {
+            font-size: clamp(14px, 2.5vw, 16px);
+            color: var(--text-dim);
+            margin-top: 24px;
+        }
+        
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 48px;
+            width: 100%;
+            max-width: 1000px;
+        }
+        
+        .card-grid-3 {
+            grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+        }
+        
+        .card-grid-4 {
+            grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: clamp(12px, 2vw, 16px);
+            padding: clamp(20px, 3vw, 28px) clamp(16px, 3vw, 24px);
+            text-align: center;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+        
+        @media (hover: hover) {
+            .card:hover {
+                transform: translateY(-4px);
+                border-color: #444;
+            }
+        }
+        
+        .card-icon {
+            font-size: clamp(32px, 5vw, 40px);
+            margin-bottom: clamp(12px, 2vw, 16px);
+        }
+        
+        .card-title {
+            font-size: clamp(16px, 2.5vw, 18px);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .card-desc {
+            font-size: clamp(13px, 2vw, 14px);
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        
+        /* Stats */
+        .stat-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: clamp(24px, 5vw, 60px);
+            margin-top: clamp(32px, 5vw, 48px);
+        }
+        
+        .stat {
+            text-align: center;
+            min-width: 120px;
+        }
+        
+        .stat-number {
+            font-size: clamp(36px, 8vw, 72px);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-label {
+            font-size: clamp(14px, 2vw, 16px);
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+        
+        /* Architecture Diagram */
+        .architecture {
+            display: flex;
+            align-items: center;
+            gap: clamp(12px, 3vw, 24px);
+            margin-top: clamp(32px, 5vw, 48px);
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .arch-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: clamp(12px, 2vw, 20px) clamp(16px, 3vw, 28px);
+            text-align: center;
+        }
+        
+        .arch-box.highlight {
+            border-color: var(--accent);
+            box-shadow: 0 0 30px rgba(41, 151, 255, 0.2);
+        }
+        
+        .arch-label {
+            font-size: clamp(12px, 2vw, 14px);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .arch-desc {
+            font-size: clamp(11px, 1.5vw, 12px);
+            color: var(--text-dim);
+        }
+        
+        .arch-arrow {
+            font-size: clamp(18px, 3vw, 24px);
+            color: var(--text-dim);
+        }
+        
+        .arch-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        /* Quote */
+        .quote-block {
+            max-width: 900px;
+            padding: 0 16px;
+        }
+        
+        .quote-text {
+            font-size: clamp(20px, 4vw, 36px);
+            font-weight: 400;
+            font-style: italic;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        
+        .quote-text::before { content: '"'; }
+        .quote-text::after { content: '"'; }
+        
+        .quote-author {
+            font-size: clamp(16px, 2.5vw, 18px);
+            font-weight: 500;
+            color: var(--accent);
+            margin-top: clamp(20px, 3vw, 32px);
+        }
+        
+        /* Feature List */
+        .feature-list {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(12px, 2vw, 16px);
+            margin-top: clamp(28px, 4vw, 40px);
+            text-align: left;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: clamp(12px, 2vw, 16px);
+            font-size: clamp(16px, 2.5vw, 20px);
+        }
+        
+        .feature-icon {
+            width: clamp(28px, 4vw, 32px);
+            height: clamp(28px, 4vw, 32px);
+            min-width: 28px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(14px, 2vw, 16px);
+        }
+        
+        /* Flow diagram */
+        .flow {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: clamp(12px, 2vw, 20px);
+            margin-top: clamp(32px, 5vw, 48px);
+        }
+        
+        .flow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(8px, 1.5vw, 12px);
+        }
+        
+        .flow-icon {
+            width: clamp(48px, 8vw, 64px);
+            height: clamp(48px, 8vw, 64px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: clamp(12px, 2vw, 16px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(20px, 3.5vw, 28px);
+        }
+        
+        .flow-label {
+            font-size: clamp(11px, 1.8vw, 14px);
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+        
+        .flow-arrow {
+            font-size: clamp(18px, 3vw, 24px);
+            color: var(--accent);
+        }
+        
+        /* Highlight box */
+        .highlight-box {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: clamp(12px, 2vw, 16px);
+            padding: clamp(20px, 4vw, 32px) clamp(24px, 5vw, 48px);
+            margin-top: clamp(28px, 4vw, 40px);
+            width: 100%;
+            max-width: 800px;
+        }
+        
+        /* Story box (serendipity) */
+        .story-box {
+            background: linear-gradient(135deg, rgba(41, 151, 255, 0.1), rgba(100, 210, 255, 0.1));
+            border: 1px solid rgba(41, 151, 255, 0.3);
+            border-radius: clamp(12px, 2vw, 16px);
+            padding: clamp(24px, 5vw, 40px);
+            margin-top: clamp(28px, 4vw, 40px);
+            width: 100%;
+            max-width: 900px;
+            text-align: left;
+        }
+        
+        .story-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .story-text {
+            font-size: clamp(16px, 2.5vw, 22px);
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        
+        .story-subtext {
+            font-size: clamp(14px, 2vw, 18px);
+            color: var(--text-secondary);
+            margin-top: 20px;
+        }
+        
+        /* Decision boxes */
+        .decision-tree {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-top: clamp(32px, 5vw, 48px);
+        }
+        
+        .decision-box {
+            padding: clamp(16px, 3vw, 24px) clamp(20px, 4vw, 32px);
+            border-radius: 12px;
+            font-size: clamp(14px, 2vw, 16px);
+            min-width: 160px;
+            text-align: center;
+        }
+        
+        .decision-box.push {
+            background: rgba(48, 209, 88, 0.15);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+        
+        .decision-box.defer {
+            background: rgba(41, 151, 255, 0.15);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+        
+        .decision-box.suppress {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+        
+        .decision-label {
+            font-weight: 700;
+            font-size: clamp(18px, 3vw, 24px);
+            margin-bottom: 8px;
+        }
+        
+        .decision-threshold {
+            font-size: clamp(12px, 1.5vw, 14px);
+            opacity: 0.8;
+        }
+        
+        /* Triage buttons */
+        .triage-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            justify-content: center;
+            margin: 32px 0;
+        }
+        
+        .triage-btn {
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: clamp(14px, 2vw, 18px);
+            font-weight: 600;
+        }
+        
+        .triage-btn.deal {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .triage-btn.ignore {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .triage-btn.handled {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.6);
+        }
+        
+        /* Timeline */
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            margin-top: 32px;
+            text-align: left;
+            width: 100%;
+            max-width: 700px;
+        }
+        
+        .timeline-item {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        
+        .timeline-marker {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: clamp(14px, 2vw, 18px);
+            flex-shrink: 0;
+        }
+        
+        .timeline-content h3 {
+            font-size: clamp(16px, 2.5vw, 20px);
+            margin-bottom: 6px;
+        }
+        
+        .timeline-content p {
+            color: var(--text-secondary);
+            font-size: clamp(13px, 2vw, 15px);
+        }
+        
+        /* Navigation */
+        .nav {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        
+        .nav-dot {
+            width: 8px;
+            height: 8px;
+            min-width: 12px;
+            min-height: 12px;
+            border-radius: 50%;
+            background: #333;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        @media (hover: none) {
+            .nav-dot {
+                min-width: 16px;
+                min-height: 16px;
+            }
+        }
+        
+        .nav-dot.active {
+            background: var(--accent);
+            transform: scale(1.3);
+        }
+        
+        .nav-dot:hover {
+            background: #555;
+        }
+        
+        .arrow-nav {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 32px;
+            color: #333;
+            cursor: pointer;
+            padding: 20px;
+            transition: color 0.3s ease;
+            z-index: 100;
+            user-select: none;
+        }
+        
+        .arrow-nav:hover {
+            color: var(--text-primary);
+        }
+        
+        .arrow-left { left: 16px; }
+        .arrow-right { right: 16px; }
+        
+        .slide-counter {
+            position: fixed;
+            top: 32px;
+            right: 32px;
+            font-size: 14px;
+            color: #444;
+            font-weight: 500;
+            z-index: 100;
+        }
+        
+        /* Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .slide.active .headline,
+        .slide.active .headline-medium,
+        .slide.active .title-massive,
+        .slide.active .subhead,
+        .slide.active .card-grid,
+        .slide.active .architecture,
+        .slide.active .stat-row,
+        .slide.active .flow,
+        .slide.active .quote-block,
+        .slide.active .feature-list,
+        .slide.active .highlight-box,
+        .slide.active .story-box,
+        .slide.active .decision-tree,
+        .slide.active .timeline,
+        .slide.active .triage-actions {
+            animation: fadeUp 0.6s ease forwards;
+        }
+        
+        .slide.active .subhead { animation-delay: 0.1s; opacity: 0; animation-fill-mode: forwards; }
+        .slide.active .card-grid,
+        .slide.active .architecture,
+        .slide.active .stat-row,
+        .slide.active .flow,
+        .slide.active .feature-list,
+        .slide.active .story-box,
+        .slide.active .decision-tree,
+        .slide.active .timeline,
+        .slide.active .triage-actions { animation-delay: 0.2s; opacity: 0; animation-fill-mode: forwards; }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .architecture {
+                flex-direction: column;
+            }
+            .arch-arrow {
+                transform: rotate(90deg);
+            }
+            .arch-group {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .flow-arrow {
+                display: none;
+            }
+            .flow {
+                gap: 16px;
+            }
+            .arrow-nav {
+                display: none;
+            }
+        }
+        
+        /* More stories link */
+        .more-stories {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            color: rgba(255,255,255,0.3);
+            text-decoration: none;
+            z-index: 100;
+        }
+        .more-stories:hover {
+            color: rgba(255,255,255,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation">
+        
+        <!-- Slide 1: Title -->
+        <div class="slide active center" data-slide="1">
+            <div class="tagline">Built with Amplifier</div>
+            <div class="title-massive">Cortex</div>
+            <div class="subhead">A personal AI platform that protects your attention, learns your preferences, and amplifies your capabilities.</div>
+            <div class="small-text">Vision: March 2025 · From idea to working system</div>
+        </div>
+        
+        <!-- Slide 2: The Problem -->
+        <div class="slide" data-slide="2">
+            <div class="headline">Your attention is under attack</div>
+            <div class="stat-row">
+                <div class="stat">
+                    <div class="stat-number">300+</div>
+                    <div class="stat-label">Notifications per day</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">23</div>
+                    <div class="stat-label">Minutes to refocus</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">50%</div>
+                    <div class="stat-label">Are low priority</div>
+                </div>
+            </div>
+            <div class="subhead">Modern life drowns us in interruptions. What if AI could filter the noise?</div>
+        </div>
+        
+        <!-- Slide 3: The Vision -->
+        <div class="slide" data-slide="3">
+            <div class="tagline">March 2025</div>
+            <div class="headline">A personal AI that truly knows you</div>
+            <div class="card-grid card-grid-3">
+                <div class="card">
+                    <div class="card-icon">&#x1F9E0;</div>
+                    <div class="card-title">Learns</div>
+                    <div class="card-desc">Builds understanding of your priorities, relationships, and preferences over time</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F6E1;&#xFE0F;</div>
+                    <div class="card-title">Protects</div>
+                    <div class="card-desc">Guards your attention from low-value interruptions and notification overload</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x2728;</div>
+                    <div class="card-title">Amplifies</div>
+                    <div class="card-desc">Routes tasks to domain experts, surfaces insights, and takes action on your behalf</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Slide 4: Architecture -->
+        <div class="slide" data-slide="4">
+            <div class="headline">Hub and Spoke Architecture</div>
+            <div class="subhead">Central intelligence with specialized domain experts</div>
+            <div class="architecture">
+                <div class="arch-group">
+                    <div class="arch-box">
+                        <div class="arch-label">&#x1F4F1; Phone</div>
+                    </div>
+                    <div class="arch-box">
+                        <div class="arch-label">&#x1F4BB; Desktop</div>
+                    </div>
+                    <div class="arch-box">
+                        <div class="arch-label">&#x231A; Watch</div>
+                    </div>
+                </div>
+                <div class="arch-arrow">&#x2192;</div>
+                <div class="arch-box highlight">
+                    <div class="arch-label">&#x1F9E0; Cortex Core</div>
+                    <div class="arch-desc">Central AI Hub</div>
+                </div>
+                <div class="arch-arrow">&#x2192;</div>
+                <div class="arch-group">
+                    <div class="arch-box">
+                        <div class="arch-label">&#x1F4B0; Finance</div>
+                    </div>
+                    <div class="arch-box">
+                        <div class="arch-label">&#x1F3C3; Health</div>
+                    </div>
+                    <div class="arch-box">
+                        <div class="arch-label">&#x1F4E7; Comms</div>
+                    </div>
+                </div>
+            </div>
+            <div class="small-text">All devices report to one brain. Domain experts provide specialized knowledge.</div>
+        </div>
+        
+        <!-- Slide 5: Domain Experts -->
+        <div class="slide" data-slide="5">
+            <div class="headline">Domain Expert Entities</div>
+            <div class="subhead">Like hiring consultants for every part of your life</div>
+            <div class="card-grid card-grid-4">
+                <div class="card">
+                    <div class="card-icon">&#x1F4B0;</div>
+                    <div class="card-title">Finance</div>
+                    <div class="card-desc">Budget tracking, spending insights, investment alerts</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F3C3;</div>
+                    <div class="card-title">Health</div>
+                    <div class="card-desc">Activity, sleep, nutrition, medication reminders</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F4E7;</div>
+                    <div class="card-title">Communications</div>
+                    <div class="card-desc">Email triage, message priority, response drafting</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F4C5;</div>
+                    <div class="card-title">Calendar</div>
+                    <div class="card-desc">Scheduling, prep briefs, conflict resolution</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Slide 6: Attention Firewall -->
+        <div class="slide" data-slide="6">
+            <div class="tagline">First Domain Expert · Working Now</div>
+            <div class="headline">Attention Firewall</div>
+            <div class="subhead">AI-powered notification controller for Windows</div>
+            <div class="flow">
+                <div class="flow-step">
+                    <div class="flow-icon">&#x1F4E5;</div>
+                    <div class="flow-label">Capture All</div>
+                </div>
+                <div class="flow-arrow">&#x2192;</div>
+                <div class="flow-step">
+                    <div class="flow-icon">&#x1F916;</div>
+                    <div class="flow-label">LLM Score</div>
+                </div>
+                <div class="flow-arrow">&#x2192;</div>
+                <div class="flow-step">
+                    <div class="flow-icon">&#x1F3AF;</div>
+                    <div class="flow-label">Filter</div>
+                </div>
+                <div class="flow-arrow">&#x2192;</div>
+                <div class="flow-step">
+                    <div class="flow-icon">&#x1F514;</div>
+                    <div class="flow-label">Surface Important</div>
+                </div>
+                <div class="flow-arrow">&#x2192;</div>
+                <div class="flow-step">
+                    <div class="flow-icon">&#x1F4CB;</div>
+                    <div class="flow-label">Batch Rest</div>
+                </div>
+            </div>
+            <div class="small-text">Captures every Windows notification · Scores with Claude Haiku · Surfaces only what matters</div>
+        </div>
+        
+        <!-- Slide 7: Intelligent Scoring -->
+        <div class="slide" data-slide="7">
+            <div class="headline">Intelligent Scoring</div>
+            <div class="subhead">The LLM evaluates each notification in context</div>
+            <div class="card-grid card-grid-3">
+                <div class="card">
+                    <div class="card-icon">&#x1F464;</div>
+                    <div class="card-title">VIP Detection</div>
+                    <div class="card-desc">Recognizes important senders, user aliases, and key relationships</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x23F0;</div>
+                    <div class="card-title">Urgency Analysis</div>
+                    <div class="card-desc">Identifies deadlines, time-sensitive language, escalation patterns</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F3AF;</div>
+                    <div class="card-title">Context Awareness</div>
+                    <div class="card-desc">Understands app priority, conversation threads, decision needs</div>
+                </div>
+            </div>
+            <div class="highlight-box">
+                <div class="headline-medium">Configurable via Markdown</div>
+                <div class="subhead" style="margin-top: 12px;">Edit attention-rules.md to define VIPs, keywords, and custom scoring logic</div>
+            </div>
+        </div>
+        
+        <!-- Slide 8: Decision Flow -->
+        <div class="slide" data-slide="8">
+            <div class="headline">The Decision Flow</div>
+            <div class="subhead">Score thresholds determine notification fate</div>
+            <div class="decision-tree">
+                <div class="decision-box push">
+                    <div class="decision-label">PUSH</div>
+                    <div class="decision-threshold">score >= 0.7</div>
+                    <div style="margin-top: 8px; font-size: 13px;">Interrupt now</div>
+                </div>
+                <div class="decision-box defer">
+                    <div class="decision-label">DEFER</div>
+                    <div class="decision-threshold">0.3 - 0.7</div>
+                    <div style="margin-top: 8px; font-size: 13px;">Queue for triage</div>
+                </div>
+                <div class="decision-box suppress">
+                    <div class="decision-label">SUPPRESS</div>
+                    <div class="decision-threshold">score < 0.3</div>
+                    <div style="margin-top: 8px; font-size: 13px;">Silent log only</div>
+                </div>
+            </div>
+            <div class="small-text">VIP senders bypass scoring - always push immediately</div>
+        </div>
+        
+        <!-- Slide 9: The Serendipity Moment -->
+        <div class="slide" data-slide="9">
+            <div class="tagline">The Breakthrough</div>
+            <div class="headline">A Happy Accident</div>
+            <div class="story-box">
+                <div class="story-icon">&#x1F4A1;</div>
+                <div class="story-text">
+                    During testing, an unrelated notification arrived <strong>4 minutes before a meeting</strong>. 
+                    The system dismissed it appropriately, but then &mdash; <em>used the opportunity</em> to remind me about the upcoming meeting.
+                </div>
+                <div class="story-subtext">
+                    This serendipitous behavior inspired the <span style="color: var(--accent);">always-on scheduler</span> design.
+                    What if Cortex didn't just react &mdash; but proactively surveyed state and took action?
+                </div>
+            </div>
+        </div>
+        
+        <!-- Slide 10: Triage System -->
+        <div class="slide center" data-slide="10">
+            <div class="tagline">Phase 1 Complete</div>
+            <div class="headline">The Triage System</div>
+            <div class="subhead">Non-critical notifications no longer vanish.<br>They accumulate for review at a good time.</div>
+        </div>
+        
+        <!-- Slide 11: The Triage Triple -->
+        <div class="slide" data-slide="11">
+            <div class="headline">The Triage Triple</div>
+            <div class="subhead">Every queued item gets one of three responses</div>
+            <div class="triage-actions">
+                <div class="triage-btn deal">Deal with</div>
+                <div class="triage-btn ignore">Ignore</div>
+                <div class="triage-btn handled">Already handled</div>
+            </div>
+            <div class="card-grid card-grid-3">
+                <div class="card">
+                    <div class="card-title">Deal with</div>
+                    <div class="card-desc">Opens pre-drafted responses and suggested actions. System learns this was important.</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Ignore</div>
+                    <div class="card-desc">Dismisses the item. System learns to suppress similar notifications in the future.</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Already handled</div>
+                    <div class="card-desc">Marks complete without affecting learning. You dealt with it outside Cortex.</div>
+                </div>
+            </div>
+            <div class="small-text">Optional feedback on any action helps steer future decisions</div>
+        </div>
+        
+        <!-- Slide 12: Always-On Scheduler -->
+        <div class="slide" data-slide="12">
+            <div class="tagline">Cortex Core</div>
+            <div class="headline">The Always-On Scheduler</div>
+            <div class="subhead">Adaptive intervals that respond to activity</div>
+            <div class="timeline">
+                <div class="timeline-item">
+                    <div class="timeline-marker">15m</div>
+                    <div class="timeline-content">
+                        <h3>Default Wake-up</h3>
+                        <p>Check pending triage, upcoming calendar, domain expert state</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker">1m</div>
+                    <div class="timeline-content">
+                        <h3>After Action</h3>
+                        <p>If something happened, wake sooner to check for follow-up</p>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-marker">1h</div>
+                    <div class="timeline-content">
+                        <h3>When Idle</h3>
+                        <p>Nothing happening? Lengthen interval to save resources</p>
+                    </div>
+                </div>
+            </div>
+            <div class="small-text">Cortex can also set its own alarms - "Wake me 5 minutes before my next meeting"</div>
+        </div>
+        
+        <!-- Slide 13: Powered by Amplifier -->
+        <div class="slide" data-slide="13">
+            <div class="tagline">The Foundation</div>
+            <div class="headline">Powered by Amplifier</div>
+            <div class="subhead">The modular AI agent framework from Microsoft</div>
+            <div class="card-grid card-grid-4">
+                <div class="card">
+                    <div class="card-icon">&#x1F504;</div>
+                    <div class="card-title">Sessions</div>
+                    <div class="card-desc">Persistent AI conversations with context</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F4E6;</div>
+                    <div class="card-title">Bundles</div>
+                    <div class="card-desc">Composable config packages</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F916;</div>
+                    <div class="card-title">Agents</div>
+                    <div class="card-desc">Specialized AI personas</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F527;</div>
+                    <div class="card-title">Tools</div>
+                    <div class="card-desc">Extensible capabilities</div>
+                </div>
+            </div>
+            <div class="small-text">Tiny stable kernel · Modules at the edges · Bricks and studs composition</div>
+        </div>
+        
+        <!-- Slide 14: Outcome-Focused Development -->
+        <div class="slide" data-slide="14">
+            <div class="quote-block">
+                <div class="quote-text">I did NO technical directing down in the weeds. I explained outcomes, asked what was possible, told it to try things, and gave my feedback.</div>
+                <div class="quote-author">&mdash; Brian Krabach, Lead Developer</div>
+            </div>
+            <div class="feature-list" style="margin-top: 48px;">
+                <div class="feature-item">
+                    <div class="feature-icon">&#x1F4AC;</div>
+                    <span>Explain the outcome you need</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">&#x2753;</div>
+                    <span>Ask what's possible</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">&#x1F9EA;</div>
+                    <span>Tell it to try things</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">&#x1F4DD;</div>
+                    <span>Give feedback on results</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">&#x1F501;</div>
+                    <span>Iterate until it works</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Slide 15: What Got Built -->
+        <div class="slide" data-slide="15">
+            <div class="headline">What Got Built</div>
+            <div class="stat-row">
+                <div class="stat">
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">Repositories</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">1</div>
+                    <div class="stat-label">Working Expert</div>
+                </div>
+            </div>
+            <div class="card-grid card-grid-3" style="margin-top: 32px;">
+                <div class="card">
+                    <div class="card-icon">&#x1F5A5;&#xFE0F;</div>
+                    <div class="card-title">amplifier-app-server</div>
+                    <div class="card-desc">Cortex Hub with notification processing, device registry, web UI, authentication</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F514;</div>
+                    <div class="card-title">attention-firewall</div>
+                    <div class="card-desc">Windows client + bundle with pywinrt capture, LLM scoring, toast display</div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">&#x1F3A8;</div>
+                    <div class="card-title">Design System</div>
+                    <div class="card-desc">Complete token system, component specs, accessibility standards, brand voice</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Slide 16: Call to Action -->
+        <div class="slide center" data-slide="16">
+            <div class="tagline">Get Started</div>
+            <div class="title-massive">What will you build?</div>
+            <div class="card-grid card-grid-3" style="margin-top: 64px;">
+                <div class="card">
+                    <div class="card-title">Amplifier</div>
+                    <div class="card-desc" style="color: var(--accent);">github.com/microsoft/amplifier</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Cortex Hub</div>
+                    <div class="card-desc" style="color: var(--accent);">github.com/bkrabach/amplifier-app-server</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Attention Firewall</div>
+                    <div class="card-desc" style="color: var(--accent);">github.com/bkrabach/amplifier-bundle-attention-firewall</div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Navigation -->
+    <div class="slide-counter"><span id="current">1</span> / <span id="total">16</span></div>
+    <div class="arrow-nav arrow-left" onclick="prevSlide()">&#x2039;</div>
+    <div class="arrow-nav arrow-right" onclick="nextSlide()">&#x203A;</div>
+    <div class="nav" id="nav"></div>
+    
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const nav = document.getElementById('nav');
+        const currentEl = document.getElementById('current');
+        const totalEl = document.getElementById('total');
+        let currentSlide = 0;
+        
+        // Create nav dots
+        slides.forEach((_, i) => {
+            const dot = document.createElement('div');
+            dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+            dot.onclick = () => goToSlide(i);
+            nav.appendChild(dot);
+        });
+        
+        totalEl.textContent = slides.length;
+        
+        function goToSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            nav.children[currentSlide].classList.remove('active');
+            
+            currentSlide = (n + slides.length) % slides.length;
+            
+            slides[currentSlide].classList.add('active');
+            nav.children[currentSlide].classList.add('active');
+            currentEl.textContent = currentSlide + 1;
+        }
+        
+        function nextSlide() { goToSlide(currentSlide + 1); }
+        function prevSlide() { goToSlide(currentSlide - 1); }
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+            if (e.key === 'Home') goToSlide(0);
+            if (e.key === 'End') goToSlide(slides.length - 1);
+        });
+        
+        // Touch support with passive listeners
+        let touchStartX = 0;
+        document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+        document.addEventListener('touchend', (e) => {
+            const diff = touchStartX - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 50) diff > 0 ? nextSlide() : prevSlide();
+        }, { passive: true });
+    </script>
+    <a href="index.html" class="more-stories">More Amplifier Stories</a>
+</body>
+</html>
