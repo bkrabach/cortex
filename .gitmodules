@@ -13,3 +13,6 @@
 [submodule "amplifier-app-server"]
 	path = amplifier-app-server
 	url = https://github.com/bkrabach/amplifier-app-server.git
+[submodule "cortex-client-macos"]
+	path = cortex-client-macos
+	url = https://github.com/bkrabach/cortex-client-macos.git
