@@ -68,14 +68,21 @@ class TestIncludes:
     def test_has_includes(self, frontmatter):
         assert "includes" in frontmatter, "Must have includes section"
 
-    def test_includes_foundation(self, raw_content):
-        assert "amplifier-foundation" in raw_content
+    def test_includes_foundation(self, frontmatter):
+        includes = frontmatter["includes"]
+        assert "amplifier-foundation" in includes
 
-    def test_includes_a2a_behavior(self, raw_content):
-        assert (
-            "git+https://github.com/microsoft/amplifier-bundle-a2a@main" in raw_content
-        )
-        assert "behaviors/a2a.yaml" in raw_content
+    def test_includes_a2a_behavior(self, frontmatter):
+        includes = frontmatter["includes"]
+        a2a_behaviors = [
+            i
+            for i in includes
+            if isinstance(i, dict)
+            and "git+https://github.com/microsoft/amplifier-bundle-a2a@main"
+            in i.get("behavior", "")
+            and "behaviors/a2a.yaml" in i.get("behavior", "")
+        ]
+        assert len(a2a_behaviors) == 1
 
 
 # ── YAML Frontmatter: Session Config ─────────────────────────────────────
@@ -101,11 +108,19 @@ class TestProvider:
     def test_has_providers(self, frontmatter):
         assert "providers" in frontmatter
 
-    def test_provider_anthropic(self, raw_content):
-        assert "provider-anthropic" in raw_content
+    def test_provider_anthropic(self, frontmatter):
+        providers = frontmatter["providers"]
+        anthropic = [
+            p for p in providers if isinstance(p, dict) and "provider-anthropic" in p
+        ]
+        assert len(anthropic) == 1
 
-    def test_model_claude_sonnet(self, raw_content):
-        assert "claude-sonnet-4-5" in raw_content
+    def test_model_claude_sonnet(self, frontmatter):
+        providers = frontmatter["providers"]
+        anthropic = [
+            p for p in providers if isinstance(p, dict) and "provider-anthropic" in p
+        ]
+        assert anthropic[0]["provider-anthropic"]["model"] == "claude-sonnet-4-5"
 
 
 # ── YAML Frontmatter: Hooks (A2A Server) ─────────────────────────────────
@@ -201,15 +216,20 @@ class TestTools:
     def test_has_tools(self, frontmatter):
         assert "tools" in frontmatter
 
-    def test_has_tool_a2a(self, raw_content):
-        assert "tool-a2a" in raw_content
+    def test_has_tool_a2a(self, frontmatter):
+        tools = frontmatter["tools"]
+        assert "tool-a2a" in tools
 
-    def test_has_tool_filesystem(self, raw_content):
-        assert "tool-filesystem" in raw_content
+    def test_has_tool_filesystem(self, frontmatter):
+        tools = frontmatter["tools"]
+        fs = [t for t in tools if isinstance(t, dict) and "tool-filesystem" in t]
+        assert len(fs) == 1
 
-    def test_filesystem_config_path(self, raw_content):
-        # tool-filesystem should have write access to {server_root}/config
-        assert "config" in raw_content
+    def test_filesystem_write_access_config(self, frontmatter):
+        tools = frontmatter["tools"]
+        fs = [t for t in tools if isinstance(t, dict) and "tool-filesystem" in t]
+        assert len(fs) == 1
+        assert "{server_root}/config" in fs[0]["tool-filesystem"]["write_access"]
 
 
 # ── Markdown Body: System Prompt Sections ─────────────────────────────────
@@ -279,7 +299,7 @@ class TestSystemPromptProactiveBroadcasting:
         assert "0.9" in body
 
     def test_mentions_a2a_tool(self, lower_body):
-        assert "a2a" in lower_body
+        assert "a2a tool" in lower_body
 
     def test_mentions_ai_os_target(self, body):
         assert "ai-os" in body
