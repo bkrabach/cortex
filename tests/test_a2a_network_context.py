@@ -37,7 +37,7 @@ class TestSection1AgentNetworkHeader:
         assert "A2A protocol" in content
 
     def test_mentions_a2a_send_operation(self, content):
-        assert 'a2a(operation="send"' in content or 'a2a(operation="send"' in content
+        assert 'a2a(operation="send"' in content
 
 
 class TestSection2AgentsOnTheNetwork:
@@ -167,11 +167,7 @@ class TestSection3YourRoleCortex:
 
     def test_dont_reach_out_when_local(self, content):
         lower = content.lower()
-        assert (
-            "don't reach out" in lower
-            or "don't reach out" in lower
-            or "answer locally" in lower
-        )
+        assert "don't reach out" in lower or "answer locally" in lower
 
 
 class TestSection4ProactiveTriggers:
