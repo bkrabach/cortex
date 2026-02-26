@@ -1,6 +1,7 @@
 """Tests for context/a2a-network.md — A2A mesh topology and routing rules."""
 
 import pathlib
+import re
 
 import pytest
 
@@ -14,6 +15,12 @@ def content():
     """Load the a2a-network.md file content."""
     assert A2A_NETWORK_FILE.exists(), f"{A2A_NETWORK_FILE} does not exist"
     return A2A_NETWORK_FILE.read_text()
+
+
+@pytest.fixture
+def lower_content(content):
+    """Lower-cased file content for case-insensitive checks."""
+    return content.lower()
 
 
 class TestDirectoryAndFileExist:
@@ -30,8 +37,8 @@ class TestSection1AgentNetworkHeader:
     def test_has_agent_network_header(self, content):
         assert "# A2A Agent Network" in content
 
-    def test_mentions_5_agent_mesh(self, content):
-        assert "5-agent mesh" in content or "five-agent mesh" in content.lower()
+    def test_mentions_5_agent_mesh(self, content, lower_content):
+        assert "5-agent mesh" in content or "five-agent mesh" in lower_content
 
     def test_mentions_a2a_protocol(self, content):
         assert "A2A protocol" in content
@@ -65,7 +72,7 @@ class TestSection2AgentsOnTheNetwork:
 
     # --- lifeline ---
     def test_lifeline_listed(self, content):
-        assert "lifeline" in content
+        assert re.search(r"\blifeline\b", content), "agent 'lifeline' not found"
 
     def test_lifeline_url(self, content):
         assert "http://localhost:8211" in content
@@ -141,33 +148,27 @@ class TestSection3YourRoleCortex:
     def test_has_your_role_section(self, content):
         assert "Your Role" in content and "cortex" in content
 
-    def test_routing_calendar_to_ai_os(self, content):
+    def test_routing_calendar_to_ai_os(self, content, lower_content):
         # Calendar context → ai-os
-        lower = content.lower()
-        assert "calendar" in lower
+        assert "calendar" in lower_content
         assert "ai-os" in content
 
-    def test_routing_sender_relationship_to_lifeline(self, content):
-        lower = content.lower()
-        assert "sender" in lower or "relationship" in lower
+    def test_routing_sender_relationship_to_lifeline(self, content, lower_content):
+        assert "sender" in lower_content or "relationship" in lower_content
         assert "lifeline" in content
 
-    def test_routing_coding_to_hive_slack(self, content):
-        lower = content.lower()
-        assert "coding" in lower or "technical" in lower
+    def test_routing_coding_to_hive_slack(self, content, lower_content):
+        assert "coding" in lower_content or "technical" in lower_content
         assert "hive-slack" in content
 
-    def test_routing_slack_channel_to_hive_slack(self, content):
-        lower = content.lower()
-        assert "slack channel" in lower or "channel context" in lower
+    def test_routing_slack_channel_to_hive_slack(self, lower_content):
+        assert "slack channel" in lower_content or "channel context" in lower_content
 
-    def test_routing_email_file_to_ai_os(self, content):
-        lower = content.lower()
-        assert "email" in lower or "file" in lower
+    def test_routing_email_file_to_ai_os(self, lower_content):
+        assert "email" in lower_content or "file" in lower_content
 
-    def test_dont_reach_out_when_local(self, content):
-        lower = content.lower()
-        assert "don't reach out" in lower or "answer locally" in lower
+    def test_dont_reach_out_when_local(self, lower_content):
+        assert "don't reach out" in lower_content or "answer locally" in lower_content
 
 
 class TestSection4ProactiveTriggers:
@@ -179,22 +180,19 @@ class TestSection4ProactiveTriggers:
     def test_marked_customizable(self, content):
         assert "CUSTOMIZABLE" in content
 
-    def test_trigger_high_urgency_notification(self, content):
+    def test_trigger_high_urgency_notification(self, content, lower_content):
         # Notification scored >= 0.9 urgency → notify ai-os
         assert "0.9" in content
-        lower = content.lower()
-        assert "urgency" in lower
+        assert "urgency" in lower_content
 
-    def test_trigger_focus_mode_change(self, content):
-        lower = content.lower()
-        assert "focus mode" in lower
+    def test_trigger_focus_mode_change(self, lower_content):
+        assert "focus mode" in lower_content
         # Should mention enter and exit
-        assert "enter" in lower or "exit" in lower
+        assert "enter" in lower_content or "exit" in lower_content
 
-    def test_trigger_notification_burst(self, content):
-        lower = content.lower()
-        assert "burst" in lower
-        assert "single source" in lower or "single-source" in lower
+    def test_trigger_notification_burst(self, lower_content):
+        assert "burst" in lower_content
+        assert "single source" in lower_content or "single-source" in lower_content
 
     def test_all_triggers_default_to_ai_os(self, content):
         # All 3 proactive triggers should target ai-os only
@@ -206,15 +204,15 @@ class TestSection4ProactiveTriggers:
         )
         assert "ai-os" in triggers_section, "Proactive triggers must target ai-os"
 
-    def test_other_agents_can_ask_cortex(self, content):
-        lower = content.lower()
+    def test_other_agents_can_ask_cortex(self, lower_content):
         # Other agents can ask Cortex directly
         assert (
-            "ask cortex" in lower
-            or "ask cortex directly" in lower
-            or "can ask" in lower
+            "agents can ask cortex" in lower_content
+            or "ask cortex directly" in lower_content
         )
 
-    def test_cortex_does_not_proactively_push_to_others(self, content):
-        lower = content.lower()
-        assert "does not proactively push" in lower or "not proactively push" in lower
+    def test_cortex_does_not_proactively_push_to_others(self, lower_content):
+        assert (
+            "does not proactively push" in lower_content
+            or "not proactively push" in lower_content
+        )
