@@ -12,8 +12,11 @@ A2A_NETWORK_FILE = CONTEXT_DIR / "a2a-network.md"
 
 @pytest.fixture
 def content():
-    """Load the a2a-network.md file content."""
-    assert A2A_NETWORK_FILE.exists(), f"{A2A_NETWORK_FILE} does not exist"
+    """Load the a2a-network.md file content.
+
+    Lets FileNotFoundError propagate naturally; the dedicated
+    test_a2a_network_file_exists test is the canonical existence check.
+    """
     return A2A_NETWORK_FILE.read_text()
 
 
@@ -21,6 +24,22 @@ def content():
 def lower_content(content):
     """Lower-cased file content for case-insensitive checks."""
     return content.lower()
+
+
+@pytest.fixture
+def routing_section(content):
+    """Extract the 'Your Role: cortex' section (between its heading and the next heading)."""
+    parts = re.split(r"^## ", content, flags=re.MULTILINE)
+    for part in parts:
+        if part.startswith("Your Role"):
+            return part
+    return ""
+
+
+@pytest.fixture
+def lower_routing_section(routing_section):
+    """Lower-cased routing section for case-insensitive checks."""
+    return routing_section.lower()
 
 
 class TestDirectoryAndFileExist:
@@ -148,27 +167,37 @@ class TestSection3YourRoleCortex:
     def test_has_your_role_section(self, content):
         assert "Your Role" in content and "cortex" in content
 
-    def test_routing_calendar_to_ai_os(self, content, lower_content):
+    def test_routing_calendar_to_ai_os(self, routing_section, lower_routing_section):
         # Calendar context → ai-os
-        assert "calendar" in lower_content
-        assert "ai-os" in content
+        assert "calendar" in lower_routing_section
+        assert "ai-os" in routing_section
 
-    def test_routing_sender_relationship_to_lifeline(self, content, lower_content):
-        assert "sender" in lower_content or "relationship" in lower_content
-        assert "lifeline" in content
+    def test_routing_sender_relationship_to_lifeline(
+        self, routing_section, lower_routing_section
+    ):
+        assert (
+            "sender" in lower_routing_section or "relationship" in lower_routing_section
+        )
+        assert "lifeline" in routing_section
 
-    def test_routing_coding_to_hive_slack(self, content, lower_content):
-        assert "coding" in lower_content or "technical" in lower_content
-        assert "hive-slack" in content
+    def test_routing_coding_to_hive_slack(self, routing_section, lower_routing_section):
+        assert "coding" in lower_routing_section or "technical" in lower_routing_section
+        assert "hive-slack" in routing_section
 
-    def test_routing_slack_channel_to_hive_slack(self, lower_content):
-        assert "slack channel" in lower_content or "channel context" in lower_content
+    def test_routing_slack_channel_to_hive_slack(self, lower_routing_section):
+        assert (
+            "slack channel" in lower_routing_section
+            or "channel context" in lower_routing_section
+        )
 
-    def test_routing_email_file_to_ai_os(self, lower_content):
-        assert "email" in lower_content or "file" in lower_content
+    def test_routing_email_file_to_ai_os(self, lower_routing_section):
+        assert "email" in lower_routing_section or "file" in lower_routing_section
 
-    def test_dont_reach_out_when_local(self, lower_content):
-        assert "don't reach out" in lower_content or "answer locally" in lower_content
+    def test_dont_reach_out_when_local(self, lower_routing_section):
+        assert (
+            "don't reach out" in lower_routing_section
+            or "answer locally" in lower_routing_section
+        )
 
 
 class TestSection4ProactiveTriggers:
@@ -196,12 +225,9 @@ class TestSection4ProactiveTriggers:
 
     def test_all_triggers_default_to_ai_os(self, content):
         # All 3 proactive triggers should target ai-os only
-        # Find the proactive triggers section and verify ai-os is the target
-        triggers_section = (
-            content.split("Proactive Triggers")[1]
-            if "Proactive Triggers" in content
-            else ""
-        )
+        # Find the proactive triggers section using regex (resilient to heading format)
+        parts = re.split(r"##.*Proactive Triggers", content)
+        triggers_section = parts[1] if len(parts) > 1 else ""
         assert "ai-os" in triggers_section, "Proactive triggers must target ai-os"
 
     def test_other_agents_can_ask_cortex(self, lower_content):
