@@ -336,3 +336,39 @@ amplifier-server service restart
 - **DO NOT** create files in the parent `notification-watcher/` repo when you mean the `amplifier-app-server/` submodule — this was a bug in a previous session
 - **DO NOT** use `%USERPROFILE%` in PowerShell — use `$env:USERPROFILE` instead
 - **DO NOT** assume the API key is in the shell environment — under systemd it's ONLY in `~/.cortex/server.env`
+
+---
+
+## 11. Prioritized Next Steps
+
+### P0 — Fix Before Demo
+
+1. **A2A agent card skills list is empty** — When you `curl http://localhost:8214/.well-known/agent.json`, the `"skills"` field is `[]`. The 5 skills (`attention-state`, `notification-score`, `focus-mode-status`, `notification-history`, `notification-content-search`) are configured in `bundles/cortex-a2a.md` under `hooks: hooks-a2a-server: config: agent_skills:` but the card builder in `amplifier-module-hooks-a2a-server` isn't receiving them. Investigate the `build_agent_card()` function in `/home/bkrabach/repos/amplifier-bundle-a2a/modules/hooks-a2a-server/amplifier_module_hooks_a2a_server/card.py` and trace how config flows from bundle → hook mount → card builder.
+
+2. **Test A2A end-to-end with a peer agent** — Start one of the other agents (ai-os is the most important peer) and verify:
+   - Cortex can send a message to ai-os via `a2a(operation="send", agent="ai-os", message="...")`
+   - ai-os can send a message to Cortex and get an autonomous response
+   - The Morning Briefing scenario works: ai-os asks "What notifications came through overnight?" and Cortex responds with ranked results
+
+3. **Verify proactive A2A broadcast** — Trigger a notification with score >= 0.9 and confirm the cortex-a2a session fires off a message to ai-os via tool-a2a.
+
+### P1 — Important Improvements
+
+4. **Attention rules are stale** — The `config/attention-rules.md` still has Palo Alto trip context from early February. The runtime copy at `~/.amplifier-server/config/attention-rules.md` may also be stale. Update both to reflect current priorities. Ask the user what their current context/travel/focus should be.
+
+5. **LLM conversation context for scoring** — We recently added conversation history injection (the scorer now sees the last 10 messages in the same thread). Monitor the logs to verify this is working well and the context isn't getting too large (body truncated to 200 chars per history message).
+
+6. **Web UI polish** — The chat UI now has multiline input and thinking indicator. Consider adding:
+   - Streaming responses (currently waits for full response)
+   - Better error display when LLM fails
+   - Notification count in browser tab title
+
+### P2 — Nice to Have
+
+7. **macOS client reconnection** — The macOS client sometimes drops and doesn't reconnect. May need keep-alive or reconnection logic.
+
+8. **Notification deduplication** — The Windows client sometimes sends duplicate notifications. The store has dedup logic but it may need tuning.
+
+9. **Focus mode integration** — The attention-rules.md has focus mode concepts but there's no actual focus mode toggle in the web UI or API yet. When implemented, it should trigger an A2A notification to ai-os per the routing rules.
+
+10. **Update CONTEXT_TRANSFER.md** — This document should be updated at the end of each major session to keep it current for the next handoff.
