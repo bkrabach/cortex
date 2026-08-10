@@ -1,0 +1,65 @@
+Cortex package builder v0.1.0
+
+==> Checking sources
+  ok    cortex                 /home/bkrabach/dev/cortex-core/cortex
+  ok    cortex-gateway         /home/bkrabach/dev/cortex-core/cortex-gateway
+  ok    cortex-mind            /home/bkrabach/dev/cortex-core/cortex-mind
+  ok    cortex-pack-tmux-kit   /home/bkrabach/dev/cortex-core/cortex-pack-tmux-kit
+  ok    drumbeat               /home/bkrabach/dev/amplifier-attention-manager/drumbeat
+  ok    android apk            /home/bkrabach/dev/cortex-core/cortex/dist/cortex.apk (15M)
+
+==> Fingerprinting sources (they must be unchanged when this finishes)
+  info  cortex                 7073e5167b56  dirty
+  info  cortex-gateway         2c6c4f7642a7  dirty
+  info  cortex-mind            04f7edfafbe0  clean
+  info  cortex-pack-tmux-kit   859ba3a455e5  clean
+  info  drumbeat               86d8a06423d4  clean
+
+==> Staging cortex-demo-20260810
+  ok    cortex                 190 files, 20M
+  ok    cortex-gateway         38 files, 524K
+  ok    cortex-mind            11 files, 80K
+  ok    cortex-pack-tmux-kit   17 files, 136K
+  ok    drumbeat               41 files, 764K
+  ok    android apk            sha256 f3bdc01921fd5c4f...
+
+==> Writing the front door
+  ok    install-cortex.sh
+  ok    SAM-README.md
+  ok    PACKAGE-PINS.md
+
+==> Verifying the staged package
+  ok    all required files present, no excluded paths leaked
+
+==> Writing the tarball
+  ok    /home/bkrabach/dev/cortex-core/cortex/build/cortex-demo-20260810.tar.gz  (9.0M)
+  ok    sha256 7ef4aa3017634e7bca276ea6e038af67b3b3b8b472d4c54e4a26ed428737e927
+
+==> Confirming the sources were not touched
+  ok    cortex                 unchanged
+  ok    cortex-gateway         unchanged
+  ok    cortex-mind            unchanged
+  ok    cortex-pack-tmux-kit   unchanged
+  ok    drumbeat               unchanged
+
+==> Contents (top 2 levels)
+  cortex-demo-20260810/
+  cortex-demo-20260810/cortex/
+  cortex-demo-20260810/cortex-gateway/
+  cortex-demo-20260810/cortex-mind/
+  cortex-demo-20260810/cortex-pack-tmux-kit/
+  cortex-demo-20260810/drumbeat/
+  cortex-demo-20260810/install-cortex.sh
+  cortex-demo-20260810/PACKAGE-PINS.md
+  cortex-demo-20260810/SAM-README.md
+
+  Package ready.
+
+  /home/bkrabach/dev/cortex-core/cortex/build/cortex-demo-20260810.tar.gz
+  9.0M   sha256 7ef4aa3017634e7bca276ea6e038af67b3b3b8b472d4c54e4a26ed428737e927
+
+  Hand it over with:
+    scp /home/bkrabach/dev/cortex-core/cortex/build/cortex-demo-20260810.tar.gz sam@his-box:~/
+    ssh sam@his-box
+    tar -xzf cortex-demo-20260810.tar.gz && cd cortex-demo-20260810 && ./install-cortex.sh
+

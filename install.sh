@@ -370,13 +370,36 @@ if [ -f "$GATEWAY_CONFIG_JSON" ]; then
     warn "         then re-run this installer. A path that does not resolve is not written:"
     warn "         it would look configured and fail at the first fleet_status call."
   fi
-  if python3 - "$GATEWAY_CONFIG_JSON" "$_fleet_arg" <<'PYCFG'
+  # mind_dir, same rule. The gateway's own setup defaults it to a checkout path
+  # in the AUTHOR's dev workspace, which exists on exactly one machine. Left
+  # alone, a fresh install on anyone else's box renders the persona from the
+  # builtin fallback while the cortex-mind we just installed sits unread -- the
+  # gateway reports that as a non-required check, so it passes quietly. Silent,
+  # and wrong. Only written when the directory is really there.
+  _mind_arg=""
+  if [ -d "$MIND_HOME" ] && [ -n "$(mind_payload "$MIND_HOME")" ]; then
+    _mind_arg="$MIND_HOME"
+  fi
+  if python3 - "$GATEWAY_CONFIG_JSON" "$_fleet_arg" "$_mind_arg" <<'PYCFG'
 import json, os, sys
 
-path, fleet_bin = sys.argv[1], sys.argv[2]
+path, fleet_bin, mind_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 defaults = {"reply_default_automation_slug": "chat"}
 if fleet_bin:
     defaults["fleet_bin"] = fleet_bin
+if mind_dir:
+    defaults["mind_dir"] = mind_dir
+
+# Keys whose value is a path INTO THIS MACHINE. These are the only keys a set
+# value can be overruled for, and only when the path does not resolve here.
+PATH_KEYS = {"fleet_bin": os.X_OK, "mind_dir": None}
+
+
+def resolves(key, value):
+    p = os.path.expanduser(str(value))
+    if key == "mind_dir":
+        return os.path.isdir(p)
+    return os.access(p, PATH_KEYS[key])
 
 try:
     with open(path) as f:
@@ -403,11 +426,11 @@ def is_set(v):
 added, kept, repaired = [], [], []
 for key, value in defaults.items():
     if key in cfg and is_set(cfg[key]):
-        # One exception to "never touch a set value": a fleet_bin that does not
+        # One exception to "never touch a set value": a path that does not
         # resolve on THIS host is not a preference, it is a dangling pointer --
-        # the gateway's own setup writes a dev-workspace default that exists on
+        # the gateway's own setup writes dev-workspace defaults that exist on
         # nobody else's box. A value that DOES resolve is never touched.
-        if key == "fleet_bin" and not os.access(os.path.expanduser(str(cfg[key])), os.X_OK):
+        if key in PATH_KEYS and not resolves(key, cfg[key]):
             repaired.append(f"{key}={value!r} (was {cfg[key]!r}, which does not resolve here)")
             cfg[key] = value
         else:

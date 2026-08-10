@@ -7,3 +7,6 @@ lane.log
 __pycache__/
 *.pyc
 .venv/
+
+# Package build output (scripts/make-package.sh).
+build/

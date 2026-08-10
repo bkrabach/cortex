@@ -4,8 +4,31 @@ All notable, user-visible changes to the Cortex hub lane.
 
 ## [Unreleased]
 
+### Added
+
+- **Cortex now ships as one file you can hand to someone.**
+  `./scripts/make-package.sh` builds `cortex-demo-<date>.tar.gz` — the hub, the
+  gateway, the mind, the tmux-kit pack, the Android build, and a pinned copy of
+  the drumbeat engine, laid out so the installer's existing source resolution
+  finds all of it. Install on a machine that has never seen this workspace is
+  `tar -xzf`, `cd`, `./install-cortex.sh`. `SAM-README.md` travels inside it:
+  prerequisites, the one command, pairing the phone, and five minutes of things
+  to try. `PACKAGE-PINS.md` records the exact commit every directory came from,
+  so drumbeat is a transported dependency with a traceable origin, never a fork.
+  The build refuses to write a package that is missing a component, and verifies
+  it changed none of its sources.
+
 ### Fixed
 
+- **A fresh install on someone else's machine no longer runs with the wrong
+  personality.** The gateway's setup wrote `mind_dir` pointing into a developer's
+  home directory. Anywhere else that path does not exist, so Cortex quietly
+  rendered its builtin fallback persona while the cortex-mind that had just been
+  installed sat unread — and nothing said so, because the gateway treats that
+  check as optional. `install.sh` now repoints a `mind_dir` that does not resolve
+  on this machine, exactly as it already did for `fleet_bin`, and `cortex doctor`
+  fails on one instead of ignoring it. A path you set that does work is still
+  never touched.
 - **Pairing is now one value, not two.** You carried a gateway URL and a code from
   the page to the phone by eye. Tap **Get pairing link** and you get a single
   `cortex://pair?gw=…&code=…` value that the app's pairing field takes whole. The

@@ -233,6 +233,31 @@ cmd_doctor() {
     fail "fleet_bin" "no gateway config at ${GATEWAY_CONFIG_JSON}"
     note "remedy: run the gateway's setup, then re-run install.sh"
   fi
+  # mind_dir is where the gateway reads the persona and instructions from. When
+  # it does not resolve, the gateway does NOT fail -- it renders a builtin
+  # fallback and reports the check as non-required. That is a silent downgrade
+  # of Cortex's whole character, so it is a FAIL here, not a warning.
+  if mind=$(cfg_get mind_dir); then
+    local mind_r; mind_r="${mind/#\~/$HOME}"
+    local mshown="$mind"; [ "$mind_r" != "$mind" ] && mshown="${mind} -> ${mind_r}"
+    if [ -d "$mind_r" ]; then
+      pass "mind_dir" "${mshown}"
+    else
+      fail "mind_dir" "${mshown} does not exist -- the gateway falls back to its builtin persona"
+      if [ -d "$MIND_HOME" ]; then
+        note "the installed mind IS present at ${MIND_HOME} -- the configured path"
+        note "points somewhere else (a dev workspace, most likely)."
+        note "remedy: re-run install.sh; it repoints a mind_dir that does not resolve"
+      else
+        note "remedy: install cortex-mind (CORTEX_MIND_SRC=... ./install.sh), then re-run doctor"
+      fi
+    fi
+  elif [ -f "$GATEWAY_CONFIG_JSON" ]; then
+    fail "mind_dir" "mind_dir not set in ${GATEWAY_CONFIG_JSON}"
+    note "remedy: install cortex-mind, then re-run install.sh -- it writes the key"
+    note "        only when the directory is really there, so an unset key means it was not"
+  fi
+
   if [ -d "${DRUMBEAT_WS}/automations" ]; then
     pass "drumbeat workspace" "$DRUMBEAT_WS"
   else
