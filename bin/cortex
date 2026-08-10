@@ -1,0 +1,386 @@
+#!/usr/bin/env bash
+# cortex -- operate the Cortex stack.
+#
+#   cortex status      ports, pids, health, one screen
+#   cortex doctor      check everything; every failure names its remedy
+#   cortex logs [svc]  tail the logs  (gateway | drumbeat | hub; -f to follow)
+#   cortex start       start services in tmux session 'cortex'
+#   cortex stop        drain and stop them
+#   cortex restart     stop, then start
+#   cortex url         print the pairing URL
+#
+# Safety rules this script will not break (CONTRACT-PINS.md law 3):
+#   - It only ever creates, inspects or kills the tmux session named 'cortex'.
+#   - It never binds or signals anything on ports 8443 9443 9000 9100 8088,
+#     which belong to other live services on this host.
+#
+set -uo pipefail
+
+CORTEX_CONF="${HOME}/.config/cortex"
+CORTEX_STATE="${HOME}/.local/state/cortex"
+CORTEX_SHARE="${HOME}/.local/share/cortex"
+
+GATEWAY_CONF="${CORTEX_CONF}/gateway"
+GATEWAY_HOME="${CORTEX_SHARE}/gateway"
+DRUMBEAT_WS="${CORTEX_STATE}/drumbeat"
+DRUMBEAT_HOME="${CORTEX_SHARE}/drumbeat"
+MIND_HOME="${CORTEX_SHARE}/mind"
+PACK_HOME="${CORTEX_SHARE}/packs/tmux-kit"
+HUB_HOME="${CORTEX_SHARE}/hub"
+DIST_DIR="${CORTEX_SHARE}/dist"
+LOG_DIR="${CORTEX_STATE}/logs"
+OPENAI_KEY_FILE="${GATEWAY_CONF}/openai_key"
+
+GATEWAY_PORT=7443
+DRUMBEAT_PORT=9102
+HUB_PORT=7080
+TMUX_SESSION="cortex"
+FORBIDDEN_PORTS="8443 9443 9000 9100 8088"
+
+if [ -t 1 ]; then
+  C_OK=$'\033[32m'; C_WARN=$'\033[33m'; C_ERR=$'\033[31m'; C_DIM=$'\033[2m'; C_B=$'\033[1m'; C_0=$'\033[0m'
+else
+  C_OK=""; C_WARN=""; C_ERR=""; C_DIM=""; C_B=""; C_0=""
+fi
+
+FAILS=0; WARNS=0
+pass() { printf '%sPASS%s  %-22s %s\n' "$C_OK"   "$C_0" "$1" "${2:-}"; }
+warn() { printf '%sWARN%s  %-22s %s\n' "$C_WARN" "$C_0" "$1" "${2:-}"; WARNS=$((WARNS+1)); }
+fail() { printf '%sFAIL%s  %-22s %s\n' "$C_ERR"  "$C_0" "$1" "${2:-}"; FAILS=$((FAILS+1)); }
+note() { printf '      %s%s%s\n' "$C_DIM" "$*" "$C_0"; }
+head_() { printf '\n%s%s%s\n' "$C_B" "$*" "$C_0"; }
+
+# --------------------------------------------------------------- primitives
+port_pid() {  # pid holding a listening tcp port, or empty
+  local p="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltnpH "sport = :${p}" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"${p}" -sTCP:LISTEN 2>/dev/null | head -1
+  fi
+}
+port_open() {  # is anything accepting on this port
+  python3 - "$1" <<'PY' 2>/dev/null
+import socket, sys
+s = socket.socket(); s.settimeout(1.0)
+sys.exit(0 if s.connect_ex(("127.0.0.1", int(sys.argv[1]))) == 0 else 1)
+PY
+}
+http_code() {  # always exactly one 3-digit code, never a concatenation
+  local c; c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1" 2>/dev/null)
+  case "$c" in ''|*[!0-9]*) echo 000 ;; *) echo "$c" ;; esac
+}
+# Find a CA to verify the gateway with. Prints "<path> disk" or "<path> tofu".
+# Never uses curl -k: an unverified check would prove nothing about TLS, and the
+# device contract forbids it in clients.
+GATEWAY_CA_ORIGIN=""
+gateway_ca() {
+  local ca
+  for ca in "${GATEWAY_CONF}/tls/ca.pem" "${GATEWAY_CONF}/ca.pem" "${CORTEX_STATE}/gateway/tls/ca.pem"; do
+    if [ -f "$ca" ]; then GATEWAY_CA_ORIGIN="disk"; echo "$ca"; return 0; fi
+  done
+  # The gateway publishes its CA unauthenticated at GET /api/ca (CONTRACT.md).
+  # Fetching it from the endpoint it secures is trust-on-first-use, not proof --
+  # so it is labelled that way everywhere it is reported.
+  local tofu="${CORTEX_STATE}/gateway/ca-tofu.pem"
+  mkdir -p "$(dirname "$tofu")" 2>/dev/null
+  if python3 - "$GATEWAY_PORT" "$tofu" <<'PYCA' 2>/dev/null
+import ssl, sys, urllib.request
+port, out = sys.argv[1], sys.argv[2]
+ctx = ssl._create_unverified_context()
+with urllib.request.urlopen(f"https://127.0.0.1:{port}/api/ca", context=ctx, timeout=5) as r:
+    data = r.read()
+if b"BEGIN CERTIFICATE" not in data:
+    sys.exit(1)
+with open(out, "wb") as f:
+    f.write(data)
+PYCA
+  then GATEWAY_CA_ORIGIN="tofu"; echo "$tofu"; return 0; fi
+  GATEWAY_CA_ORIGIN=""; return 1
+}
+https_code() {
+  local url="$1" ca
+  if ca=$(gateway_ca); then
+    local c; c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 --cacert "$ca" "$url" 2>/dev/null)
+    case "$c" in ''|*[!0-9]*) echo 000 ;; *) echo "$c" ;; esac
+  else
+    echo "NOCA"
+  fi
+}
+session_exists() { tmux has-session -t "=${TMUX_SESSION}" 2>/dev/null; }
+gateway_bin() {
+  local c
+  for c in cortex-gateway gateway cortexgateway; do
+    [ -x "${GATEWAY_HOME}/venv/bin/${c}" ] && { echo "${GATEWAY_HOME}/venv/bin/${c}"; return 0; }
+  done
+  return 1
+}
+lan_ip() { ip -4 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}' || echo 127.0.0.1; }
+
+guard_forbidden() {  # never let a Cortex port collide with a protected service
+  local p
+  for p in $FORBIDDEN_PORTS; do
+    if [ "$p" = "$GATEWAY_PORT" ] || [ "$p" = "$DRUMBEAT_PORT" ] || [ "$p" = "$HUB_PORT" ]; then
+      printf '%serror:%s Cortex is configured to use port %s, which belongs to another live service. Refusing to start.\n' "$C_ERR" "$C_0" "$p" >&2
+      exit 1
+    fi
+  done
+}
+
+# ------------------------------------------------------------------- doctor
+cmd_doctor() {
+  printf '%sCortex doctor%s  %s\n' "$C_B" "$C_0" "$(date -Is)"
+
+  head_ "Prerequisites"
+  if command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(0 if sys.version_info>=(3,11) else 1)' 2>/dev/null; then
+    pass python3 "$(python3 -c 'import sys;print("%d.%d.%d"%sys.version_info[:3])')"
+  else
+    fail python3 "need >= 3.11"; note "remedy: sudo apt install python3.11"
+  fi
+  for c in uv git tmux curl; do
+    if command -v "$c" >/dev/null 2>&1; then pass "$c" "$(command -v "$c")"
+    else fail "$c" "not found"; note "remedy: install $c and re-run 'cortex doctor'"; fi
+  done
+
+  head_ "Components"
+  if gb=$(gateway_bin); then pass gateway "$gb"
+  else
+    fail gateway "not installed"
+    note "remedy: the gateway lane's checkout must exist, then re-run install.sh"
+    note "        (CORTEX_GATEWAY_SRC=/path/to/cortex-gateway ./install.sh)"
+  fi
+  if [ -x "${DRUMBEAT_HOME}/venv/bin/drumbeat" ]; then pass drumbeat "${DRUMBEAT_HOME}/venv/bin/drumbeat"
+  else fail drumbeat "not installed"; note "remedy: CORTEX_DRUMBEAT_SRC=~/dev/amplifier-attention-manager/drumbeat ./install.sh"; fi
+  if [ -f "${HUB_HOME}/serve.py" ]; then pass hub "${HUB_HOME}/serve.py"
+  else fail hub "not installed"; note "remedy: re-run install.sh"; fi
+  if [ -d "$MIND_HOME" ] && [ -n "$(ls -A "$MIND_HOME" 2>/dev/null)" ]; then pass mind "$MIND_HOME"
+  else fail mind "not installed"; note "remedy: CORTEX_MIND_SRC=/path/to/cortex-mind ./install.sh"; fi
+  if [ -f "${PACK_HOME}/pack.md" ]; then pass pack "$PACK_HOME"
+  else fail pack "not installed"; note "remedy: CORTEX_PACK_SRC=/path/to/cortex-pack-tmux-kit ./install.sh"; fi
+
+  head_ "Configuration"
+  if [ -s "$OPENAI_KEY_FILE" ]; then
+    local mode; mode=$(stat -c '%a' "$OPENAI_KEY_FILE" 2>/dev/null || echo '?')
+    if [ "$mode" = "600" ]; then pass "openai key" "${OPENAI_KEY_FILE} (0600)"
+    else warn "openai key" "mode ${mode}, want 0600"; note "remedy: chmod 600 ${OPENAI_KEY_FILE}"; fi
+  else
+    warn "openai key" "absent -- voice minting will 503 (by design, naming the remedy)"
+    note "remedy: printf '%%s' sk-... > ${OPENAI_KEY_FILE} && chmod 600 ${OPENAI_KEY_FILE}"
+    note "        read per-request: no restart needed once the file exists"
+  fi
+  if [ -d "$GATEWAY_CONF" ]; then pass "gateway config" "$GATEWAY_CONF"
+  else fail "gateway config" "missing"; note "remedy: re-run install.sh"; fi
+  if [ -d "${DRUMBEAT_WS}/automations" ]; then
+    pass "drumbeat workspace" "$DRUMBEAT_WS"
+  else
+    fail "drumbeat workspace" "no automations/ -- drumbeat will refuse to start"
+    note "remedy: install cortex-mind (it supplies automations/), then re-run install.sh"
+    note "        an empty automations/ is NOT created on purpose: it would schedule"
+    note "        nothing while looking healthy"
+  fi
+  if [ -f "${DRUMBEAT_WS}/packs.txt" ]; then pass "drumbeat packs.txt" "$(grep -cv '^\s*\(#\|$\)' "${DRUMBEAT_WS}/packs.txt" 2>/dev/null || echo 0) pack(s)"
+  else fail "drumbeat packs.txt" "missing"; note "remedy: re-run install.sh"; fi
+
+  head_ "Services"
+  if session_exists; then
+    pass "tmux session" "'${TMUX_SESSION}' ($(tmux list-windows -t "=${TMUX_SESSION}" 2>/dev/null | wc -l) windows)"
+  else
+    fail "tmux session" "'${TMUX_SESSION}' not running"; note "remedy: cortex start"
+  fi
+
+  local code
+  code=$(http_code "http://127.0.0.1:${HUB_PORT}/healthz")
+  if [ "$code" = "200" ]; then pass "hub :${HUB_PORT}" "healthz 200"
+  else fail "hub :${HUB_PORT}" "healthz ${code}"; note "remedy: cortex start; then cortex logs hub"; fi
+
+  code=$(https_code "https://127.0.0.1:${GATEWAY_PORT}/healthz")
+  case "$code" in
+    200)
+      if [ "$GATEWAY_CA_ORIGIN" = "disk" ]; then
+        pass "gateway :${GATEWAY_PORT}" "healthz 200, TLS verified against the CA on disk"
+      else
+        pass "gateway :${GATEWAY_PORT}" "healthz 200, TLS verified against the CA it serves at /api/ca"
+        note "that is trust-on-first-use, not independent proof: this check confirms the"
+        note "gateway serves a consistent chain, not that the chain is the one you expect."
+        note "The phone does the same thing once, at pairing."
+      fi;;
+    NOCA)
+      if port_open "$GATEWAY_PORT"; then
+        warn "gateway :${GATEWAY_PORT}" "listening, but served no usable CA (no file on disk, /api/ca gave none)"
+        note "remedy: run the gateway's setup so it writes its CA, then re-run doctor"
+      else
+        fail "gateway :${GATEWAY_PORT}" "not listening"; note "remedy: cortex start; then cortex logs gateway"
+      fi;;
+    000)  fail "gateway :${GATEWAY_PORT}" "no response"; note "remedy: cortex start; then cortex logs gateway";;
+    *)    warn "gateway :${GATEWAY_PORT}" "healthz ${code}"; note "remedy: cortex logs gateway";;
+  esac
+
+  code=$(http_code "http://127.0.0.1:${DRUMBEAT_PORT}/api/health")
+  case "$code" in
+    200) pass "drumbeat :${DRUMBEAT_PORT}" "api/health 200";;
+    401|403) pass "drumbeat :${DRUMBEAT_PORT}" "answering (${code}: needs instance api key -- engine is up)";;
+    000) fail "drumbeat :${DRUMBEAT_PORT}" "no response"; note "remedy: cortex start; then cortex logs drumbeat";;
+    *)   warn "drumbeat :${DRUMBEAT_PORT}" "api/health ${code}"; note "remedy: cortex logs drumbeat";;
+  esac
+
+  head_ "Distribution"
+  if [ -f "${DIST_DIR}/cortex.apk" ]; then
+    pass "android apk" "$(du -h "${DIST_DIR}/cortex.apk" | cut -f1) at ${DIST_DIR}/cortex.apk"
+  else
+    warn "android apk" "not built yet -- hub serves an honest 404, never a placeholder"
+    note "remedy: the android lane drops cortex.apk into ${DIST_DIR}/ (no restart needed)"
+  fi
+
+  head_ "Neighbours (must be untouched)"
+  local busy=""
+  for p in $FORBIDDEN_PORTS; do port_open "$p" && busy="${busy} ${p}"; done
+  pass "protected ports" "live:${busy:- none} -- Cortex binds only ${GATEWAY_PORT}/${DRUMBEAT_PORT}/${HUB_PORT}"
+
+  printf '\n'
+  if [ "$FAILS" -eq 0 ]; then
+    printf '%sdoctor: all checks passed%s' "$C_OK" "$C_0"
+    [ "$WARNS" -gt 0 ] && printf ' (%d warning(s) -- named above, none fatal)' "$WARNS"
+    printf '\n'; return 0
+  fi
+  printf '%sdoctor: %d check(s) FAILED%s -- fix the named remedies and re-run\n' "$C_ERR" "$FAILS" "$C_0"
+  return 1
+}
+
+# ------------------------------------------------------------------- status
+cmd_status() {
+  printf '%sCortex status%s  %s\n\n' "$C_B" "$C_0" "$(date -Is)"
+  printf '%-10s %-7s %-10s %-8s %s\n' SERVICE PORT STATE PID HEALTH
+  printf '%-10s %-7s %-10s %-8s %s\n' ------- ---- ----- --- ------
+  local pid state
+  pid=$(port_pid "$GATEWAY_PORT");  state=$([ -n "$pid" ] && echo up || echo down)
+  printf '%-10s %-7s %-10s %-8s %s\n' gateway "$GATEWAY_PORT" "$state" "${pid:--}" "$(https_code "https://127.0.0.1:${GATEWAY_PORT}/healthz")"
+  pid=$(port_pid "$DRUMBEAT_PORT"); state=$([ -n "$pid" ] && echo up || echo down)
+  printf '%-10s %-7s %-10s %-8s %s\n' drumbeat "$DRUMBEAT_PORT" "$state" "${pid:--}" "$(http_code "http://127.0.0.1:${DRUMBEAT_PORT}/api/health")"
+  pid=$(port_pid "$HUB_PORT");      state=$([ -n "$pid" ] && echo up || echo down)
+  printf '%-10s %-7s %-10s %-8s %s\n' hub "$HUB_PORT" "$state" "${pid:--}" "$(http_code "http://127.0.0.1:${HUB_PORT}/healthz")"
+  printf '\ntmux session %-8s %s\n' "'${TMUX_SESSION}'" "$(session_exists && echo running || echo 'not running (cortex start)')"
+  printf 'pairing url  %s\n' "http://$(lan_ip):${HUB_PORT}/"
+  printf 'logs         %s\n' "$LOG_DIR"
+}
+
+# -------------------------------------------------------------------- start
+start_window() {  # name, command
+  local name="$1" cmd="$2" log="${LOG_DIR}/$1.log"
+  mkdir -p "$LOG_DIR"
+  # tee -a, never plain tee: a restart must append to the log, not truncate it.
+  local wrapped="set -o pipefail; echo \"[cortex] starting ${name} at \$(date -Is)\" | tee -a '${log}'; ${cmd} 2>&1 | tee -a '${log}'; rc=\${PIPESTATUS[0]}; echo \"[cortex] ${name} exited rc=\${rc} at \$(date -Is)\" | tee -a '${log}'; echo; echo 'window kept open so the error above is readable. ctrl-d to close.'; exec bash"
+  if session_exists; then
+    tmux new-window -t "=${TMUX_SESSION}" -n "$name" "bash -lc $(printf '%q' "$wrapped")"
+  else
+    tmux new-session -d -s "$TMUX_SESSION" -n "$name" "bash -lc $(printf '%q' "$wrapped")"
+  fi
+}
+
+cmd_start() {
+  guard_forbidden
+  if session_exists; then
+    printf 'tmux session %s already running -- nothing to start.\n' "'${TMUX_SESSION}'"
+    printf 'Use "cortex restart" to cycle it, or "cortex status" to see health.\n'
+    return 0
+  fi
+  local started=0 skipped=0
+
+  # Refuse to start on top of someone else's listener.
+  local p
+  for p in "$GATEWAY_PORT" "$DRUMBEAT_PORT" "$HUB_PORT"; do
+    if port_open "$p"; then
+      printf '%serror:%s port %s is already in use by pid %s, and it is not ours.\n' "$C_ERR" "$C_0" "$p" "$(port_pid "$p")" >&2
+      printf '  remedy: stop that process, or change the Cortex port. Refusing to start.\n' >&2
+      return 1
+    fi
+  done
+
+  local gb
+  if gb=$(gateway_bin); then
+    start_window gateway "'${gb}' serve --port ${GATEWAY_PORT}"; started=$((started+1))
+  else
+    printf '%sskip%s gateway -- not installed (cortex doctor names the remedy)\n' "$C_WARN" "$C_0"; skipped=$((skipped+1))
+  fi
+
+  if [ -x "${DRUMBEAT_HOME}/venv/bin/drumbeat" ]; then
+    if [ -d "${DRUMBEAT_WS}/automations" ]; then
+      start_window drumbeat "'${DRUMBEAT_HOME}/venv/bin/drumbeat' serve --workspace '${DRUMBEAT_WS}' --port ${DRUMBEAT_PORT}"
+      started=$((started+1))
+    else
+      printf '%sskip%s drumbeat -- workspace has no automations/; the engine would refuse to start anyway\n' "$C_WARN" "$C_0"
+      skipped=$((skipped+1))
+    fi
+  else
+    printf '%sskip%s drumbeat -- not installed\n' "$C_WARN" "$C_0"; skipped=$((skipped+1))
+  fi
+
+  if [ -f "${HUB_HOME}/serve.py" ]; then
+    local hubpy="python3"
+    [ -x "${HUB_HOME}/venv/bin/python" ] && hubpy="${HUB_HOME}/venv/bin/python"
+    start_window hub "'${hubpy}' '${HUB_HOME}/serve.py' --port ${HUB_PORT} --dist-dir '${DIST_DIR}' --gateway-port ${GATEWAY_PORT}"
+    started=$((started+1))
+  else
+    printf '%sskip%s hub -- not installed\n' "$C_WARN" "$C_0"; skipped=$((skipped+1))
+  fi
+
+  if [ "$started" -eq 0 ]; then
+    printf '%serror:%s nothing to start -- no components are installed. Run install.sh.\n' "$C_ERR" "$C_0" >&2
+    return 1
+  fi
+  sleep 2
+  printf 'started %d service(s)' "$started"; [ "$skipped" -gt 0 ] && printf ', skipped %d (not installed)' "$skipped"; printf '\n'
+  printf 'attach with: tmux attach -t %s\n' "$TMUX_SESSION"
+  return 0
+}
+
+# --------------------------------------------------------------------- stop
+cmd_stop() {
+  if ! session_exists; then printf 'tmux session %s is not running.\n' "'${TMUX_SESSION}'"; return 0; fi
+  # Drain drumbeat first, by its own procedure -- never pkill -f, never a blind kill.
+  if [ -x "${DRUMBEAT_HOME}/venv/bin/drumbeat" ] && port_open "$DRUMBEAT_PORT"; then
+    printf 'draining drumbeat...\n'
+    "${DRUMBEAT_HOME}/venv/bin/drumbeat" drain --workspace "$DRUMBEAT_WS" \
+      --reason 'cortex stop' --wait --timeout 120 2>&1 | sed 's/^/  /' || \
+      printf '  drain did not complete cleanly -- continuing to stop (see cortex logs drumbeat)\n'
+  fi
+  tmux kill-session -t "=${TMUX_SESSION}" 2>/dev/null && printf 'stopped tmux session %s\n' "'${TMUX_SESSION}'"
+}
+
+cmd_restart() { cmd_stop; sleep 1; cmd_start; }
+
+# --------------------------------------------------------------------- logs
+cmd_logs() {
+  local svc="${1:-}" follow=""
+  [ "$svc" = "-f" ] && { follow="-f"; svc=""; }
+  [ "${2:-}" = "-f" ] && follow="-f"
+  mkdir -p "$LOG_DIR"
+  local files
+  if [ -n "$svc" ]; then
+    case "$svc" in
+      gateway|drumbeat|hub) files="${LOG_DIR}/${svc}.log" ;;
+      *) printf 'unknown service %s -- expected: gateway | drumbeat | hub\n' "'$svc'" >&2; return 1 ;;
+    esac
+    [ -f "$files" ] || { printf 'no log yet at %s (has it started? cortex status)\n' "$files"; return 1; }
+  else
+    files=$(ls "${LOG_DIR}"/*.log 2>/dev/null)
+    [ -n "$files" ] || { printf 'no logs yet in %s (cortex start)\n' "$LOG_DIR"; return 1; }
+  fi
+  # shellcheck disable=SC2086
+  tail -n 100 $follow $files
+}
+
+cmd_url() { printf 'http://%s:%s/\n' "$(lan_ip)" "$HUB_PORT"; }
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
+
+case "${1:-status}" in
+  doctor)  shift; cmd_doctor "$@" ;;
+  status)  shift; cmd_status "$@" ;;
+  start)   shift; cmd_start "$@" ;;
+  stop)    shift; cmd_stop "$@" ;;
+  restart) shift; cmd_restart "$@" ;;
+  logs)    shift; cmd_logs "$@" ;;
+  url)     shift; cmd_url "$@" ;;
+  -h|--help|help) usage ;;
+  *) printf 'unknown command: %s\n\n' "$1" >&2; usage >&2; exit 1 ;;
+esac

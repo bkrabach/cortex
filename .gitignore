@@ -1,0 +1,9 @@
+# Build artifacts published through the hub, never committed.
+dist/*.apk
+
+# Lane bookkeeping from the overnight build harness.
+lane.log
+
+__pycache__/
+*.pyc
+.venv/

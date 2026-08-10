@@ -1,0 +1,3 @@
+The android lane drops cortex.apk here. The hub serves it at /cortex.apk the
+moment it appears -- no restart, no reinstall. Until then the hub returns an
+honest 404 rather than a placeholder file.
