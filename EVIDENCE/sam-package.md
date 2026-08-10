@@ -415,3 +415,44 @@ The guard is not decorative — it fired for real, twice, during this work:
   takes the APK download with it. This is called out in `SAM-README.md` §2.
   It is a deliberate property (a rebuilt APK republishes with no reinstall),
   not an oversight.
+
+---
+
+## Gate 4 — committed
+
+`b92c1dd7358b4898f6d22e1188d6c4ad1cf15eaf` on `main` —
+*feat(hub): self-contained demo package + the mind_dir defect its rehearsal found*
+
+```
+ .gitignore                     |   3 +
+ CHANGELOG.md                   |  23 +++
+ EVIDENCE/rehearse-package.sh   | 167 +++++++++++++++++
+ EVIDENCE/sam-package-build.log |  65 +++++++
+ EVIDENCE/sam-package-raw.log   | 317 +++++++++++++++++++++++++++++++
+ EVIDENCE/sam-package.md        | 417 +++++++++++++++++++++++++++++++++++++++++
+ SAM-README.md                  | 204 ++++++++++++++++++++
+ bin/cortex                     |  25 +++
+ install.sh                     |  33 +++-
+ scripts/install-cortex.sh      |  44 +++++
+ scripts/make-package.sh        | 339 +++++++++++++++++++++++++++++++++
+ 11 files changed, 1632 insertions(+), 5 deletions(-)
+```
+
+The tarball is deliberately absent from that list — `git check-ignore -v` confirms
+it is excluded, and it is reproducible from source at any time:
+
+```
+.gitignore:12:build/	build/cortex-demo-20260810.tar.gz
+```
+
+CHANGELOG.md carries two entries under `[Unreleased]`: **Added** for the package,
+**Fixed** for the `mind_dir` defect.
+
+Live stack re-checked after the commit — `./bin/cortex doctor`, exit 0:
+
+```
+Neighbours (must be untouched)
+PASS  protected ports        live: 8443 9443 9000 9100 8088 -- Cortex binds only 7443/9102/7080
+
+doctor: all checks passed
+```
