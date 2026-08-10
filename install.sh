@@ -347,6 +347,107 @@ if [ -n "$GATEWAY_BIN" ]; then
   fi
 fi
 
+# --- gateway config defaults.
+# `cortex-gateway setup` writes the config; these two keys are ones the gateway
+# needs but does not yet default for itself, and a fresh install without them is
+# a silently lesser install (replies fall through to no automation; fleet_status
+# has no binary to execute). Merged, never templated over: an EXISTING config
+# keeps every value the operator set. Only genuinely ABSENT keys are added, and
+# each one is reported as added or kept.
+GATEWAY_CONFIG_JSON="${GATEWAY_CONF}/config.json"
+FLEET_BIN="${PACK_HOME}/bin/tmux-fleet"
+
+if [ -f "$GATEWAY_CONFIG_JSON" ]; then
+  # fleet_bin is only written when the binary is really there. Writing a path
+  # that does not resolve would hand the gateway a config that looks complete
+  # and fails at the first fleet_status call.
+  _fleet_arg=""
+  if [ -x "$FLEET_BIN" ]; then
+    _fleet_arg="$FLEET_BIN"
+  else
+    warn "gateway  fleet_bin NOT set -- no executable at ${FLEET_BIN}"
+    warn "         remedy: install the pack (CORTEX_PACK_SRC=/path/to/cortex-pack-tmux-kit ./install.sh),"
+    warn "         then re-run this installer. A path that does not resolve is not written:"
+    warn "         it would look configured and fail at the first fleet_status call."
+  fi
+  if python3 - "$GATEWAY_CONFIG_JSON" "$_fleet_arg" <<'PYCFG'
+import json, os, sys
+
+path, fleet_bin = sys.argv[1], sys.argv[2]
+defaults = {"reply_default_automation_slug": "chat"}
+if fleet_bin:
+    defaults["fleet_bin"] = fleet_bin
+
+try:
+    with open(path) as f:
+        cfg = json.load(f)
+except (OSError, ValueError) as e:
+    print(f"         config at {path} is not readable JSON ({e}); nothing was changed")
+    sys.exit(1)
+if not isinstance(cfg, dict):
+    print(f"         config at {path} is not a JSON object; nothing was changed")
+    sys.exit(1)
+
+def is_set(v):
+    """A key that exists with a null or blank value is NOT a user-set value.
+
+    `cortex-gateway setup` writes reply_default_automation_slug: null. Treating
+    that as "already configured" left a fresh install with the key present, the
+    value empty, and replies matching no automation -- present-but-null looking
+    exactly like configured. Only real values are preserved. Note that False and
+    0 are real values and are kept.
+    """
+    return not (v is None or (isinstance(v, str) and not v.strip()))
+
+
+added, kept, repaired = [], [], []
+for key, value in defaults.items():
+    if key in cfg and is_set(cfg[key]):
+        # One exception to "never touch a set value": a fleet_bin that does not
+        # resolve on THIS host is not a preference, it is a dangling pointer --
+        # the gateway's own setup writes a dev-workspace default that exists on
+        # nobody else's box. A value that DOES resolve is never touched.
+        if key == "fleet_bin" and not os.access(os.path.expanduser(str(cfg[key])), os.X_OK):
+            repaired.append(f"{key}={value!r} (was {cfg[key]!r}, which does not resolve here)")
+            cfg[key] = value
+        else:
+            kept.append(f"{key}={cfg[key]!r}")
+        continue
+    was = "absent" if key not in cfg else ("null" if cfg[key] is None else "blank")
+    cfg[key] = value
+    added.append(f"{key}={value!r} (was {was})")
+
+if added or repaired:
+    # Atomic: a half-written config is a bricked gateway.
+    tmp = path + ".tmp"
+    mode = os.stat(path).st_mode & 0o777
+    with open(tmp, "w") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+
+print("         added: " + (", ".join(added) if added else "nothing (all keys already present)"))
+if repaired:
+    print("         REPAIRED: " + ", ".join(repaired))
+if kept:
+    print("         kept existing: " + ", ".join(kept))
+PYCFG
+  then
+    ok "gateway  config defaults merged into ${GATEWAY_CONFIG_JSON}"
+  else
+    missing "gateway config defaults -- could not merge into ${GATEWAY_CONFIG_JSON} (reason above). remedy: fix or remove that file, then re-run this installer"
+  fi
+elif [ -f "${GATEWAY_CONF}/config.yaml" ]; then
+  warn "gateway  config is YAML (${GATEWAY_CONF}/config.yaml); this installer merges JSON only"
+  warn "         remedy: add these by hand -- reply_default_automation_slug: chat"
+  warn "                 and fleet_bin: ${FLEET_BIN}"
+elif [ -n "$GATEWAY_BIN" ]; then
+  missing "gateway config defaults -- no config at ${GATEWAY_CONFIG_JSON} to merge into. remedy: run '${GATEWAY_BIN} setup', then re-run this installer"
+else
+  info "gateway  config defaults skipped -- the gateway is not installed, so there is no config to merge into"
+fi
+
 # --- drumbeat workspace. Directory convention, not a config file:
 #     automations/ prompts/ runs/ + packs.txt at the workspace root.
 mkdir -p "${DRUMBEAT_WS}/runs" "${DRUMBEAT_WS}/prompts"

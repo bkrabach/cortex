@@ -31,6 +31,7 @@ HUB_HOME="${CORTEX_SHARE}/hub"
 DIST_DIR="${CORTEX_SHARE}/dist"
 LOG_DIR="${CORTEX_STATE}/logs"
 OPENAI_KEY_FILE="${GATEWAY_CONF}/openai_key"
+GATEWAY_CONFIG_JSON="${GATEWAY_CONF}/config.json"
 
 GATEWAY_PORT=7443
 DRUMBEAT_PORT=9102
@@ -108,6 +109,21 @@ https_code() {
     echo "NOCA"
   fi
 }
+cfg_get() {  # print one key from the gateway config, or fail if absent/unreadable
+  python3 - "$GATEWAY_CONFIG_JSON" "$1" <<'PYCFG' 2>/dev/null
+import json, sys
+try:
+    cfg = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    sys.exit(1)
+if not isinstance(cfg, dict):
+    sys.exit(1)
+v = cfg.get(sys.argv[2])
+if v is None or v == "":
+    sys.exit(1)
+print(v)
+PYCFG
+}
 session_exists() { tmux has-session -t "=${TMUX_SESSION}" 2>/dev/null; }
 gateway_bin() {
   local c
@@ -171,6 +187,52 @@ cmd_doctor() {
   fi
   if [ -d "$GATEWAY_CONF" ]; then pass "gateway config" "$GATEWAY_CONF"
   else fail "gateway config" "missing"; note "remedy: re-run install.sh"; fi
+
+  # Replies with no default automation slug do not fail -- they fall through and
+  # answer nothing, which is exactly the silent lesser state law 1 forbids.
+  local slug fleet
+  if slug=$(cfg_get reply_default_automation_slug); then
+    pass "reply slug" "reply_default_automation_slug=${slug}"
+  elif [ -f "$GATEWAY_CONFIG_JSON" ]; then
+    fail "reply slug" "reply_default_automation_slug not set in ${GATEWAY_CONFIG_JSON}"
+    note "remedy: re-run install.sh (it merges the key in without touching your other values)"
+    note "        without it, an inbound reply matches no automation and answers nothing"
+  else
+    fail "reply slug" "no gateway config at ${GATEWAY_CONFIG_JSON}"
+    note "remedy: run the gateway's setup, then re-run install.sh"
+  fi
+
+  # fleet_bin is executed by the gateway's fleet_status tool. A configured path
+  # that is not there is worse than an absent key: it looks configured.
+  if fleet=$(cfg_get fleet_bin); then
+    # The config may hold a literal ~ (the gateway's own setup writes one, and
+    # expands it at use). Judging the unexpanded string would fail a path that
+    # actually works.
+    local fleet_r; fleet_r="${fleet/#\~/$HOME}"
+    local shown="$fleet"; [ "$fleet_r" != "$fleet" ] && shown="${fleet} -> ${fleet_r}"
+    if [ -x "$fleet_r" ]; then
+      pass "fleet_bin" "${shown} (executable)"
+    elif [ -e "$fleet_r" ]; then
+      fail "fleet_bin" "${shown} exists but is not executable"
+      note "remedy: chmod +x ${fleet_r}"
+    else
+      fail "fleet_bin" "${shown} does not exist"
+      if [ -x "${PACK_HOME}/bin/tmux-fleet" ]; then
+        note "the installed pack DOES have one at ${PACK_HOME}/bin/tmux-fleet -- the"
+        note "configured path points somewhere else (a dev workspace, most likely)."
+        note "remedy: re-run install.sh; it repoints a fleet_bin that does not resolve"
+      else
+        note "remedy: install the tmux-kit pack (CORTEX_PACK_SRC=... ./install.sh), then re-run doctor"
+      fi
+    fi
+  elif [ -f "$GATEWAY_CONFIG_JSON" ]; then
+    fail "fleet_bin" "fleet_bin not set in ${GATEWAY_CONFIG_JSON}"
+    note "remedy: install the tmux-kit pack, then re-run install.sh -- it writes the key"
+    note "        only when the binary is really there, so an unset key means it was not"
+  else
+    fail "fleet_bin" "no gateway config at ${GATEWAY_CONFIG_JSON}"
+    note "remedy: run the gateway's setup, then re-run install.sh"
+  fi
   if [ -d "${DRUMBEAT_WS}/automations" ]; then
     pass "drumbeat workspace" "$DRUMBEAT_WS"
   else
@@ -222,6 +284,87 @@ cmd_doctor() {
     401|403) pass "drumbeat :${DRUMBEAT_PORT}" "answering (${code}: needs instance api key -- engine is up)";;
     000) fail "drumbeat :${DRUMBEAT_PORT}" "no response"; note "remedy: cortex start; then cortex logs drumbeat";;
     *)   warn "drumbeat :${DRUMBEAT_PORT}" "api/health ${code}"; note "remedy: cortex logs drumbeat";;
+  esac
+
+  head_ "Rails"
+  # GET /v1/notifications -- the Texting rail the phone polls. doctor holds no
+  # paired device credential, so the honest question it CAN answer is whether
+  # the rail exists and enforces auth. 404 means the gateway lane has not landed
+  # it yet, and this says so instead of passing on a shape it never saw.
+  code=$(https_code "https://127.0.0.1:${GATEWAY_PORT}/v1/notifications")
+  case "$code" in
+    401|403) pass "GET /v1/notifications" "rail present, ${code} unauthenticated (device auth enforced, as contracted)";;
+    200)
+      warn "GET /v1/notifications" "answered 200 WITHOUT a device credential"
+      note "doctor sent no pairing key, so a 200 means this rail is not enforcing device"
+      note "auth. remedy: gateway lane -- require the device key on this endpoint";;
+    404)
+      warn "GET /v1/notifications" "not served by the running gateway yet (404)"
+      note "the gateway lane is landing /v1/notifications; this check is not a pass and"
+      note "does not pretend to be. remedy: re-run 'cortex doctor' once that lane lands";;
+    NOCA)
+      warn "GET /v1/notifications" "not checked -- no CA available to verify the gateway"
+      note "remedy: run the gateway's setup so it writes its CA, then re-run doctor";;
+    000)
+      fail "GET /v1/notifications" "gateway did not answer"
+      note "remedy: cortex start; then cortex logs gateway";;
+    *)  warn "GET /v1/notifications" "unexpected ${code}"; note "remedy: cortex logs gateway";;
+  esac
+
+  # The delivery worker's cursor is how we know notifications are actually being
+  # consumed off drumbeat's outbox rather than piling up unread.
+  local hb
+  hb=$(curl -s --max-time 5 "http://127.0.0.1:${DRUMBEAT_PORT}/api/health" 2>/dev/null)
+  local verdict
+  # The body goes in as argv, NOT on stdin: stdin is already carrying this
+  # script. Piping it in gave python an empty read and a check that reported
+  # "returned nothing" while curl was plainly returning JSON.
+  verdict=$(python3 - "$hb" <<'PYOUT' 2>/dev/null
+import json, sys
+raw = sys.argv[1].strip()
+if not raw:
+    print("FAIL|drumbeat /api/health returned nothing|remedy: cortex start; then cortex logs drumbeat")
+    sys.exit(0)
+try:
+    hb = json.loads(raw)
+except ValueError:
+    print("WARN|drumbeat /api/health is not JSON (needs an instance api key?)|"
+          "remedy: read it by hand: curl -s http://127.0.0.1:9102/api/health")
+    sys.exit(0)
+ob = hb.get("outbox") if isinstance(hb, dict) else None
+if not isinstance(ob, dict):
+    if isinstance(hb, dict) and (hb.get("detail") or hb.get("error")):
+        print(f"WARN|drumbeat refused the health read: {hb.get('detail') or hb.get('error')}|"
+              "remedy: this instance wants an api key; read it by hand with that key set")
+    else:
+        keys = ", ".join(sorted(hb)) if isinstance(hb, dict) else type(hb).__name__
+        print(f"WARN|this drumbeat build publishes no outbox section (got: {keys}), "
+              "so the cursor cannot be read|"
+              "remedy: update the drumbeat checkout, then re-run install.sh")
+    sys.exit(0)
+cur = ob.get("cursor")
+if cur is None:
+    reason = ob.get("worker_cursor_source") or "no reason published"
+    print(f"WARN|no cursor published: {reason}|"
+          "remedy: start the consumer's delivery worker, then re-run doctor")
+else:
+    lag = ob.get("worker_cursor_lag")
+    upd = ob.get("worker_cursor_updated_at") or "unknown"
+    halt = ob.get("worker_halt_reason")
+    if halt:
+        print(f"FAIL|delivery worker halted: {halt}|remedy: cortex logs drumbeat")
+    else:
+        print(f"PASS|cursor {cur}, lag {lag}, updated {upd}|")
+PYOUT
+)
+  case "${verdict%%|*}" in
+    PASS) pass "delivery cursor" "$(printf '%s' "$verdict" | cut -d'|' -f2)";;
+    WARN) warn "delivery cursor" "$(printf '%s' "$verdict" | cut -d'|' -f2)"
+          note "$(printf '%s' "$verdict" | cut -d'|' -f3)";;
+    FAIL) fail "delivery cursor" "$(printf '%s' "$verdict" | cut -d'|' -f2)"
+          note "$(printf '%s' "$verdict" | cut -d'|' -f3)";;
+    *)    fail "delivery cursor" "could not evaluate drumbeat's outbox section"
+          note "remedy: curl -s http://127.0.0.1:${DRUMBEAT_PORT}/api/health and read it by hand";;
   esac
 
   head_ "Distribution"

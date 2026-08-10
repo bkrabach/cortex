@@ -87,11 +87,35 @@ mark "PHASE 8  the distribution page actually serves"
 su rehearse -c 'curl -s -o /dev/null -w "GET /          -> %{http_code}\n" http://127.0.0.1:7080/'
 su rehearse -c 'curl -s -o /dev/null -w "GET /healthz   -> %{http_code}\n" http://127.0.0.1:7080/healthz'
 su rehearse -c 'curl -s -o /dev/null -w "GET /cortex.apk-> %{http_code}\n" http://127.0.0.1:7080/cortex.apk'
-echo "-- body of the apk 404, in full: it must NAME the missing build --"
-su rehearse -c 'curl -s http://127.0.0.1:7080/cortex.apk'
+echo "-- the apk response: the 404 body must NAME the missing build; a real build is"
+echo "   reported by type and size, never dumped into this transcript as binary --"
+su rehearse -c 'code=$(curl -s -o /tmp/apk.out -w "%{http_code}" http://127.0.0.1:7080/cortex.apk)
+  if [ "$code" = "404" ]; then cat /tmp/apk.out
+  else echo "HTTP $code  $(file -b /tmp/apk.out 2>/dev/null || echo binary)  $(wc -c < /tmp/apk.out) bytes"
+  fi'
 echo "-- the page carries a QR and the gateway URL --"
 su rehearse -c 'curl -s http://127.0.0.1:7080/ | grep -o "<svg[^>]*" | head -1'
 su rehearse -c 'curl -s http://127.0.0.1:7080/ | grep -o "https://[^<]*:7443/" | head -1'
+
+mark "PHASE 8b  one-value pairing hand-off"
+echo "-- the three copy affordances are present in the served page --"
+su rehearse -c 'P=$(curl -s http://127.0.0.1:7080/)
+  printf "  tier A auto-copy (secure-context gated): "; echo "$P" | grep -c "isSecureContext"
+  printf "  tier B Copy button (legacy execCommand): "; echo "$P" | grep -c "id=\"copybtn\"\|execCommand"
+  printf "  tier C tap-to-select container:          "; echo "$P" | grep -c "id=\"pairvalue\"\|selectNodeContents"
+  printf "  status line naming the active tier:      "; echo "$P" | grep -c "id=\"pairstatus\""'
+echo "-- POST /pair/new returns ONE combined value, and it parses --"
+su rehearse -c 'curl -s -X POST http://127.0.0.1:7080/pair/new | tee /tmp/mint.json
+  python3 - /tmp/mint.json <<PY
+import json, sys, urllib.parse
+d = json.load(open(sys.argv[1]))
+if "pair_uri" not in d:
+    print("  no pair_uri:", d.get("detail", d)); raise SystemExit(0)
+q = urllib.parse.parse_qs(urllib.parse.urlparse(d["pair_uri"]).query)
+print("  gw   ->", q["gw"][0])
+print("  code ->", q["code"][0])
+print("  halves match the separate fields:", q["gw"][0] == d["gateway_url"] and q["code"][0] == d["code"])
+PY'
 
 mark "PHASE 9  gateway healthz -- TLS verified against the CA setup wrote, never curl -k"
 su rehearse -c 'CA=$HOME/.config/cortex/gateway/tls/ca.pem

@@ -11,6 +11,13 @@ Honest by construction:
   - If the APK is not built yet, /cortex.apk is a 404 that SAYS the build is
     missing. It never serves a placeholder file that would install as a broken
     app on the stakeholder's phone.
+  - A minted code is presented as ONE value the phone can take in a single
+    gesture: cortex://pair?gw=https://<host>:7443&code=<code>. The page offers
+    three copy affordances in descending order -- auto-copy, a Copy button, a
+    tap-to-select box -- and SAYS which one is actually active. It never claims
+    a copy that did not happen: the clipboard API needs a secure context and
+    this hub is plain http, so tier one is expected to be unavailable on the
+    phone and is reported as unavailable rather than assumed to have worked.
   - If QR rendering is unavailable, the page says so and shows the URL as text.
     It never renders a broken image tag.
   - The QR encodes THIS page, never the gateway address: the Android app has no
@@ -115,6 +122,18 @@ CODE_RE = re.compile(r"([0-9a-f]{4}-[0-9a-f]{4})", re.IGNORECASE)
 EXPIRES_RE = re.compile(r"^expires:\s*(\S+)\s*$", re.IGNORECASE | re.MULTILINE)
 
 
+def pair_uri(gateway_url: str, code: str) -> str:
+    """The single value the phone takes: gateway address and code in one string.
+
+    Deliberately NOT percent-encoded. `https://host:7443` is legal unencoded in
+    a query value (RFC 3986: pchar admits ':' and query admits '/'), and the
+    app's pairing field parses this literal shape. Encoding it would be more
+    pedantic and less interoperable, which is the wrong trade the night before
+    a demo.
+    """
+    return f"cortex://pair?gw={gateway_url}&code={code}"
+
+
 class MintError(RuntimeError):
     """Minting failed. `.remedy` names what the operator must do about it."""
 
@@ -217,6 +236,18 @@ PAGE = """<!doctype html>
           letter-spacing:.06em; text-align:center; color:#7ef0a8; background:#0f1a12;
           border:1px solid #1f3a27; border-radius:10px; padding:.9rem;
           margin:1rem 0 .25rem; user-select:all; }}
+ .pairv {{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.95rem;
+           line-height:1.45; word-break:break-all; color:#7ef0a8; background:#0f1a12;
+           border:1px solid #1f3a27; border-radius:10px; padding:.9rem;
+           margin:1rem 0 .6rem; cursor:pointer;
+           user-select:all; -webkit-user-select:all; }}
+ .status {{ font-size:.9rem; margin:.6rem 0 0; padding:.6rem .75rem; border-radius:8px; }}
+ .status.ok {{ background:#0f1a12; border:1px solid #1f3a27; color:#9ff0bd; }}
+ .status.warn {{ background:#1b1710; border:1px solid #3a2f16; color:#e2cf9e; }}
+ .btn.sec {{ background:#23232a; color:#e8e8ea; }}
+ .btn.sec:hover:not(:disabled) {{ background:#2c2c34; }}
+ .kv {{ color:#9a9aa2; font-size:.85rem; margin:.9rem 0 0; }}
+ .kv b {{ color:#c8c8d0; font-weight:600; }}
  .step {{ margin:0; }}
  ol {{ margin:0; padding-left:1.3rem; }} ol li {{ margin:.55rem 0; }}
  .meta {{ color:#9a9aa2; font-size:.85rem; text-align:center; margin:.6rem 0 0; }}
@@ -226,7 +257,7 @@ PAGE = """<!doctype html>
 </style>
 <div class="wrap">
   <h1>Cortex</h1>
-  <p class="sub">Install on the phone, then pair. Five steps, about two minutes.</p>
+  <p class="sub">Install on the phone, then pair. Four steps, about two minutes.</p>
 
   <div class="card">
     <h2>Step 1 &middot; Install the app</h2>
@@ -238,32 +269,27 @@ PAGE = """<!doctype html>
     <p class="step">The app opens on a screen that says
       <em>&ldquo;Not paired &mdash; open Settings to pair with your gateway.&rdquo;</em>
       Tap <b>Settings</b> at the top right. That opens
-      <b>Pair with gateway</b>, which has two fields.</p>
+      <b>Pair with gateway</b>, where the value from step 3 goes.</p>
   </div>
 
   <div class="card">
-    <h2>Step 3 &middot; Type this into &ldquo;Gateway URL&rdquo;</h2>
-    <span class="url">{gateway_url}</span>
-    <p class="meta">The field is pre-filled with an emulator address. Replace it
-      with the address above, exactly as shown &mdash; including
-      <code>https://</code> and the port.</p>
-  </div>
-
-  <div class="card">
-    <h2>Step 4 &middot; Get a pairing code</h2>
-    <button id="mintbtn" class="btn" type="button">Get pairing code</button>
+    <h2>Step 3 &middot; Get your pairing link</h2>
+    <button id="mintbtn" class="btn" type="button">Get pairing link</button>
     <div id="mintout" aria-live="polite"></div>
-    <p class="meta">Minted by this gateway on demand. Single use, and it expires
-      &mdash; get it when you are ready to type it, not before.</p>
+    <p class="meta">One value carries both the gateway address and the code, so
+      there is a single thing to move to the phone. Minted on demand: single
+      use, and it expires &mdash; get it when you are ready to paste it.</p>
   </div>
 
   <div class="card">
-    <h2>Step 5 &middot; Enter the code, tap Pair</h2>
-    <p class="step">Type the code into the second field, <b>Pairing code</b>, and
-      tap <b>Pair</b>. The log underneath will show
+    <h2>Step 4 &middot; Paste it in, tap Pair</h2>
+    <p class="step">Paste the whole <code>cortex://pair?&hellip;</code> value into
+      the pairing field and tap <b>Pair</b>. The log underneath will show
       <code>&rarr; POST /v1/pair</code> then <code>&#10003; paired</code>.
       That is the whole handshake &mdash; the app now has its own key and the
       code is spent.</p>
+    <p class="meta">If your build still shows two separate fields, step 3 prints
+      the gateway URL and the code separately underneath the combined value.</p>
   </div>
 
   <div class="card">
@@ -272,7 +298,7 @@ PAGE = """<!doctype html>
     <span class="url">{hub_url}</span>
     <p class="meta">Scan this to open <em>this page</em> on the phone &mdash; that
       is all this QR does. Cortex has no QR scanner of its own; pairing is done
-      by typing the code from step 4.</p>
+      by pasting the value from step 3.</p>
   </div>
 
   <div class="card">
@@ -299,6 +325,120 @@ PAGE_SCRIPT = """<script>
   var btn = document.getElementById('mintbtn');
   var out = document.getElementById('mintout');
   if (!btn || !out) { return; }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function setStatus(kind, text) {
+    var el = document.getElementById('pairstatus');
+    if (!el) { return; }
+    el.className = 'status ' + kind;
+    el.textContent = text;
+  }
+
+  // TIER A. Only possible in a secure context. This hub is plain http, so on
+  // the phone this is EXPECTED to be false. We detect it; we never assume it.
+  function autoCopyAvailable() {
+    return !!(window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText);
+  }
+
+  // TIER B. The legacy path, which still works on http in most mobile
+  // browsers. Returns true only if the browser reported an actual copy --
+  // execCommand returning false is a failure we surface, not one we paper over.
+  function legacyCopySupported() {
+    if (!document.execCommand) { return false; }
+    if (document.queryCommandSupported) {
+      try { return !!document.queryCommandSupported('copy'); } catch (e) { return true; }
+    }
+    return true;
+  }
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    var copied = false;
+    try {
+      ta.focus();
+      ta.select();
+      if (ta.setSelectionRange) { ta.setSelectionRange(0, text.length); }
+      copied = !!document.execCommand('copy');
+    } catch (e) {
+      copied = false;
+    }
+    document.body.removeChild(ta);
+    return copied;
+  }
+
+  // TIER C. The floor, and the only affordance that cannot fail: the value is
+  // on the page, in monospace, and one tap selects all of it.
+  function selectAll(el) {
+    try {
+      var r = document.createRange();
+      r.selectNodeContents(el);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(r);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function present(data) {
+    var uri = data.pair_uri;
+    out.innerHTML =
+      '<div class="pairv" id="pairvalue" title="tap to select all">' + esc(uri) + '</div>' +
+      '<button id="copybtn" class="btn sec" type="button">Copy</button>' +
+      '<p class="status warn" id="pairstatus">Checking what this browser allows...</p>' +
+      '<p class="kv">Single use &middot; expires ' + esc(data.expires_at || 'unknown') + '<br>' +
+      'If your build has two fields &mdash; gateway <b>' + esc(data.gateway_url || '?') +
+      '</b> &middot; code <b>' + esc(data.code || '?') + '</b></p>';
+
+    var box = document.getElementById('pairvalue');
+    var copybtn = document.getElementById('copybtn');
+
+    box.addEventListener('click', function () {
+      if (selectAll(box)) {
+        setStatus('ok', 'Selected. Long-press and choose Copy, then paste it into Cortex.');
+      } else {
+        setStatus('warn', 'This browser would not let the page select the text for you. Long-press the value above and select it by hand.');
+      }
+    });
+
+    if (!legacyCopySupported()) {
+      copybtn.disabled = true;
+      copybtn.classList.add('off');
+      copybtn.textContent = 'Copy unavailable in this browser';
+    } else {
+      copybtn.addEventListener('click', function () {
+        if (legacyCopy(uri)) {
+          setStatus('ok', 'Copied. Paste it into Cortex.');
+        } else {
+          setStatus('warn', 'The browser refused the copy, so nothing was copied. Tap the value above to select it, then long-press and choose Copy.');
+        }
+      });
+    }
+
+    // Tier A is attempted first and reported truthfully either way.
+    if (autoCopyAvailable()) {
+      navigator.clipboard.writeText(uri).then(function () {
+        setStatus('ok', 'Copied to your clipboard automatically. Paste it into Cortex.');
+      }, function (err) {
+        setStatus('warn', 'Auto-copy was available but the browser refused it (' + err +
+          '), so nothing was copied. Use the Copy button, or tap the value to select it.');
+      });
+    } else {
+      setStatus('warn', 'Auto-copy is off: the clipboard API needs a secure (https) page and ' +
+        'this hub is plain http. Nothing has been copied. Use the Copy button below, ' +
+        'or tap the value to select it all.');
+    }
+  }
+
   btn.addEventListener('click', function () {
     btn.disabled = true;
     var was = btn.textContent;
@@ -308,21 +448,28 @@ PAGE_SCRIPT = """<script>
       .then(function (r) { return r.json().then(function (j) { return [r.ok, j]; }); })
       .then(function (pair) {
         var ok = pair[0], data = pair[1];
-        if (ok && data.code) {
+        if (ok && data.pair_uri) {
+          present(data);
+        } else if (ok && data.code) {
+          // A code without the combined value means this page is newer or older
+          // than the hub serving it. Show what we actually got; never fabricate
+          // the missing half.
           out.innerHTML =
-            '<div class="code">' + data.code + '</div>' +
-            '<p class="meta">Single use &middot; expires ' + (data.expires_at || 'unknown') + '</p>';
+            '<div class="code">' + esc(data.code) + '</div>' +
+            '<p class="note">This hub minted a code but returned no combined ' +
+            'cortex://pair value, so there is nothing to copy in one piece. ' +
+            'Enter the gateway URL and this code separately.</p>';
         } else {
           out.innerHTML =
             '<p class="note"><b>No code was minted.</b><br>' +
-            (data.detail || 'the gateway did not return a code') +
-            (data.remedy ? '<br>Remedy: ' + data.remedy : '') + '</p>';
+            esc(data.detail || 'the gateway did not return a code') +
+            (data.remedy ? '<br>Remedy: ' + esc(data.remedy) : '') + '</p>';
         }
       })
       .catch(function (e) {
         out.innerHTML =
           '<p class="note"><b>No code was minted.</b><br>could not reach this hub: ' +
-          e + '<br>Remedy: reload this page; if it persists, run <code>cortex status</code>.</p>';
+          esc(e) + '<br>Remedy: reload this page; if it persists, run <code>cortex status</code>.</p>';
       })
       .then(function () { btn.disabled = false; btn.textContent = was; });
   });
@@ -418,7 +565,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             f"label={label!r}  expires_at={result['expires_at']}  "
             f"(code withheld from log by design; single use)\n"
         )
-        body = json.dumps({**result, "single_use": True}, indent=1) + "\n"
+        # The combined value is built HERE, not in the browser: the server is
+        # the only party that knows which address the phone actually reached us
+        # on, and a value assembled by JS would be one more place for the two
+        # halves to drift apart.
+        gateway_url = self._gateway_url()
+        body = json.dumps(
+            {
+                **result,
+                "gateway_url": gateway_url,
+                "pair_uri": pair_uri(gateway_url, result["code"]),
+                "single_use": True,
+            },
+            indent=1,
+        ) + "\n"
         self._send(200, body.encode(), "application/json")
 
     def _apk(self) -> None:
@@ -440,14 +600,24 @@ class Handler(http.server.BaseHTTPRequestHandler):
             {"Content-Disposition": f'attachment; filename="{APK_NAME}"'},
         )
 
-    def _page(self) -> str:
+    def _host(self) -> str:
+        """The address the caller actually reached us on.
+
+        The phone must reach the gateway by an address it can route to. If this
+        request came in on loopback the Host header says so -- and a phone
+        cannot use that, so fall back to the LAN address.
+        """
         host = self.headers.get("Host", "").split(":")[0] or lan_ip()
-        # The phone must reach the gateway by an address it can actually route
-        # to. If this page was opened on loopback, the Host header says so --
-        # and a phone cannot use that, so fall back to the LAN address.
         if host in ("127.0.0.1", "localhost", "::1"):
             host = lan_ip()
-        gateway_url = f"https://{host}:{self.gateway_port}"
+        return host
+
+    def _gateway_url(self) -> str:
+        return f"https://{self._host()}:{self.gateway_port}"
+
+    def _page(self) -> str:
+        host = self._host()
+        gateway_url = self._gateway_url()
         hub_url = f"http://{host}:{self.hub_port}/"
         apk = self.dist_dir / APK_NAME
         if apk.is_file():

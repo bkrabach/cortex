@@ -6,6 +6,28 @@ All notable, user-visible changes to the Cortex hub lane.
 
 ### Fixed
 
+- **Pairing is now one value, not two.** You carried a gateway URL and a code from
+  the page to the phone by eye. Tap **Get pairing link** and you get a single
+  `cortex://pair?gw=…&code=…` value that the app's pairing field takes whole. The
+  page offers three ways to move it, in order: auto-copy, a **Copy** button, and a
+  tap-to-select box — and it tells you which one actually worked. Auto-copy needs a
+  secure page and this hub is plain http, so on a phone it will say so and point you
+  at the Copy button rather than pretending it copied. No path ever claims a copy
+  that did not happen.
+- **A fresh install now has a reply automation and a fleet binary configured.**
+  `reply_default_automation_slug` and `fleet_bin` are merged into the gateway config
+  by `install.sh`. Re-running it adds only what is missing and never overwrites a
+  value you set — with two exceptions it names out loud: a key written as `null` is
+  filled (replies were silently matching no automation), and a `fleet_bin` that does
+  not resolve on this machine is repointed at the installed pack (the default pointed
+  into a developer's home directory).
+- **`cortex doctor` checks four more things that were failing invisibly.** The reply
+  slug, the fleet binary (exists and is executable, `~` expanded), the
+  `GET /v1/notifications` rail, and the delivery worker's cursor. A rail the gateway
+  does not serve yet is reported as *not served yet* — never as a pass.
+- **The rehearsal transcript is readable again.** Now that a real 14 MB APK exists,
+  the rehearsal was dumping the whole binary into its own evidence log. A real build
+  is reported by type and size; the 404 body is still printed in full.
 - **You can now get a pairing code without reading the source.** The gateway
   always had one (`cortex-gateway pair`), but it lives inside a venv under
   `~/.local/share/cortex/gateway/` that the page never mentioned — so the phone
