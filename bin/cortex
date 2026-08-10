@@ -314,6 +314,12 @@ cmd_start() {
 
   if [ -x "${DRUMBEAT_HOME}/venv/bin/drumbeat" ]; then
     if [ -d "${DRUMBEAT_WS}/automations" ]; then
+      # 'cortex stop' drains the scheduler via a flag file that SURVIVES restarts.
+      # Starting without clearing it leaves the engine permanently drained
+      # (registered={}, runs never start) -- a silent lesser state (law 1).
+      # Clear it by drumbeat's own procedure; a failed clear is loud, not fatal.
+      "${DRUMBEAT_HOME}/venv/bin/drumbeat" drain --clear --workspace "$DRUMBEAT_WS" >/dev/null 2>&1 \
+        || printf '%swarn%s could not clear drumbeat drain flag -- engine may start drained (cortex logs drumbeat)\n' "$C_WARN" "$C_0"
       start_window drumbeat "'${DRUMBEAT_HOME}/venv/bin/drumbeat' serve --workspace '${DRUMBEAT_WS}' --port ${DRUMBEAT_PORT}"
       started=$((started+1)); STARTED_SVCS="${STARTED_SVCS} drumbeat"
     else
