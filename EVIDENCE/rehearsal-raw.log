@@ -1,14 +1,14 @@
 === cortex install rehearsal ===
 host:      Linux 6.17.0-1014-nvidia aarch64
 image:     ubuntu:24.04
-container: cortex-rehearsal-213929
+container: cortex-rehearsal-214819
 workspace: /home/bkrabach/dev/cortex-core  (mounted READ-ONLY at /workspace)
 drumbeat:  /home/bkrabach/dev/amplifier-attention-manager/drumbeat  (mounted READ-ONLY at /drumbeat)
 openai:    deliberately NOT provided -- the missing-key path is under test
-started:   2026-08-09T21:39:29-07:00
+started:   2026-08-09T21:48:19-07:00
 
 
-########## 04:39:30  PHASE 0  stock box, before anything
+########## 04:48:19  PHASE 0  stock box, before anything
 os:     Ubuntu 24.04.4 LTS aarch64
 python: ABSENT
 uv:     ABSENT
@@ -16,10 +16,10 @@ git:    ABSENT
 tmux:   ABSENT
 curl:   ABSENT
 
-########## 04:39:30  PHASE 1  create the unprivileged user (nothing below runs as root)
+########## 04:48:19  PHASE 1  create the unprivileged user (nothing below runs as root)
 created user: rehearse
 
-########## 04:39:30  PHASE 2  prerequisite gate BEFORE prerequisites exist
+########## 04:48:19  PHASE 2  prerequisite gate BEFORE prerequisites exist
 -- copying install.sh out of the read-only mount so a bare box can run it --
 Cortex installer v0.1.0
 
@@ -36,16 +36,16 @@ error: 5 prerequisite(s) missing. Nothing was installed.
 Fix all of the above, then re-run this installer. It is safe to re-run.
 EXIT=1 (expected 1: prerequisites missing, nothing installed)
 
-########## 04:39:30  PHASE 3  install prerequisites (the remedies the gate just printed)
+########## 04:48:19  PHASE 3  install prerequisites (the remedies the gate just printed)
 apt ok: Python 3.12.3, git version 2.43.0, tmux 3.4, curl 8.5.0
 
-########## 04:39:47  PHASE 4  install uv as the unprivileged user
+########## 04:48:36  PHASE 4  install uv as the unprivileged user
 
     source $HOME/.local/bin/env (sh, bash, zsh)
     source $HOME/.local/bin/env.fish (fish)
 uv 0.12.3 (aarch64-unknown-linux-gnu)
 
-########## 04:39:48  PHASE 5  THE ONE COMMAND
+########## 04:48:37  PHASE 5  THE ONE COMMAND
 -- sources pointed at the read-only mounts; no OPENAI_API_KEY in env --
 Cortex installer v0.1.0
 
@@ -78,10 +78,10 @@ Cortex installer v0.1.0
   ok    drumbeat installed from /drumbeat
 
 ==> Installing cortex-gateway
-  FAIL  cortex-gateway -- no pyproject.toml at /workspace/cortex-gateway. remedy: the gateway lane has not landed yet; re-run this installer once it has, or set CORTEX_GATEWAY_SRC
+  ok    gateway  /home/rehearse/.local/share/cortex/gateway/venv/bin/cortex-gateway
 
 ==> Installing cortex-mind
-  ok    mind     /home/rehearse/.local/share/cortex/mind (7 files)
+  ok    mind     /home/rehearse/.local/share/cortex/mind (9 files)
 
 ==> Installing cortex-pack-tmux-kit
   ok    pack     /home/rehearse/.local/share/cortex/packs/tmux-kit (10 files)
@@ -89,33 +89,44 @@ Cortex installer v0.1.0
 ==> Configuring
   warn  openai   no key (no $OPENAI_API_KEY, no terminal to prompt on)
   warn           remedy: printf '%s' sk-... > /home/rehearse/.config/cortex/gateway/openai_key && chmod 600 /home/rehearse/.config/cortex/gateway/openai_key
+         config written: /home/rehearse/.config/cortex/gateway/config.json
+         state dir: /home/rehearse/.local/state/cortex/gateway
+         TLS minted under /home/rehearse/.config/cortex/gateway/tls: leaf valid 825d (expires 2028-11-12T04:48:39+00:00)
+         mind_dir set to ~/dev/cortex-core/cortex-mind
+         serve with: cortex-gateway serve  (https://0.0.0.0:7443)
+         next: cortex-gateway pair
+  ok    gateway  setup complete
   ok    drumbeat workspace automations -> /home/rehearse/.local/share/cortex/mind/automations
+  ok    drumbeat workspace prompts -> /home/rehearse/.local/share/cortex/mind/prompts
   ok    drumbeat packs.txt -> /home/rehearse/.local/share/cortex/packs/tmux-kit
 
 ==> Starting services (tmux session 'cortex')
-skip gateway -- not installed (cortex doctor names the remedy)
-started 2 service(s), skipped 1 (not installed)
+up   gateway   :7443
+up   drumbeat  :9102
+up   hub       :7080
+
+3 up
 attach with: tmux attach -t cortex
 
 ==> Summary
 
-  INCOMPLETE INSTALL -- 1 component(s) did not install:
-
-    - cortex-gateway -- no pyproject.toml at /workspace/cortex-gateway. remedy: the gateway lane has not landed yet; re-run this installer once it has, or set CORTEX_GATEWAY_SRC
-
-  What DID install is configured and usable. Nothing was stubbed or faked.
-  Re-run this installer once the missing pieces land -- it is idempotent.
-
-  Check current state with:  cortex doctor
+  Cortex is installed.
 
 
-real	0m3.094s
-user	0m0.676s
-sys	0m0.316s
-INSTALL_EXIT=2
+real	0m3.755s
+user	0m1.956s
+sys	0m0.732s
+  Pairing page   http://127.0.0.1:7080/   (open this on the phone)
+  Gateway        https://127.0.0.1:7443/
 
-########## 04:39:51  PHASE 6  cortex doctor
-Cortex doctor  2026-08-10T04:39:51+00:00
+  Next:  cortex doctor      check everything
+         cortex status      ports, pids, health
+         cortex logs        follow the logs
+
+INSTALL_EXIT=0
+
+########## 04:48:41  PHASE 6  cortex doctor
+Cortex doctor  2026-08-10T04:48:41+00:00
 
 Prerequisites
 PASS  python3                3.12.3
@@ -125,9 +136,7 @@ PASS  tmux                   /usr/bin/tmux
 PASS  curl                   /usr/bin/curl
 
 Components
-FAIL  gateway                not installed
-      remedy: the gateway lane's checkout must exist, then re-run install.sh
-              (CORTEX_GATEWAY_SRC=/path/to/cortex-gateway ./install.sh)
+PASS  gateway                /home/rehearse/.local/share/cortex/gateway/venv/bin/cortex-gateway
 PASS  drumbeat               /home/rehearse/.local/share/cortex/drumbeat/venv/bin/drumbeat
 PASS  hub                    /home/rehearse/.local/share/cortex/hub/serve.py
 PASS  mind                   /home/rehearse/.local/share/cortex/mind
@@ -142,10 +151,12 @@ PASS  drumbeat workspace     /home/rehearse/.local/state/cortex/drumbeat
 PASS  drumbeat packs.txt     1 pack(s)
 
 Services
-PASS  tmux session           'cortex' (2 windows)
+PASS  tmux session           'cortex' (3 windows)
 PASS  hub :7080              healthz 200
-FAIL  gateway :7443          not listening
-      remedy: cortex start; then cortex logs gateway
+PASS  gateway :7443          healthz 200, TLS verified against the CA it serves at /api/ca
+      that is trust-on-first-use, not independent proof: this check confirms the
+      gateway serves a consistent chain, not that the chain is the one you expect.
+      The phone does the same thing once, at pairing.
 PASS  drumbeat :9102         api/health 200
 
 Distribution
@@ -155,15 +166,15 @@ WARN  android apk            not built yet -- hub serves an honest 404, never a 
 Neighbours (must be untouched)
 PASS  protected ports        live: none -- Cortex binds only 7443/9102/7080
 
-doctor: 2 check(s) FAILED -- fix the named remedies and re-run
-DOCTOR_EXIT=1
+doctor: all checks passed (2 warning(s) -- named above, none fatal)
+DOCTOR_EXIT=0
 
-########## 04:39:51  PHASE 7  cortex status
-Cortex status  2026-08-10T04:39:51+00:00
+########## 04:48:41  PHASE 7  cortex status
+Cortex status  2026-08-10T04:48:41+00:00
 
 SERVICE    PORT    STATE      PID      HEALTH
 -------    ----    -----      ---      ------
-gateway    7443    down       n/a      NOCA
+gateway    7443    up         n/a      200
 drumbeat   9102    up         n/a      200
 hub        7080    up         n/a      200
 
@@ -171,7 +182,7 @@ tmux session 'cortex' running
 pairing url  http://127.0.0.1:7080/
 logs         /home/rehearse/.local/state/cortex/logs
 
-########## 04:39:51  PHASE 8  the distribution page actually serves
+########## 04:48:41  PHASE 8  the distribution page actually serves
 GET /          -> 200
 GET /healthz   -> 200
 GET /cortex.apk-> 404
@@ -188,16 +199,15 @@ download goes live with no restart.
 <svg xmlns="http://www.w3.org/2000/svg" width="174" height="174" class="segno"
 https://127.0.0.1:7443/
 
-########## 04:39:51  PHASE 9  gateway healthz
-https healthz -> 000
-gateway not reachable (see doctor above for whether it is installed)
+########## 04:48:41  PHASE 9  gateway healthz -- TLS verified against the CA setup wrote, never curl -k
+using CA: /home/rehearse/.config/cortex/gateway/tls/ca.pem
+https healthz -> 200
+body: {"status":"ok","service":"cortex-gateway","version":"0.1.0","time":"2026-08-10T04:48:41.703146+00:00","port":7443}
 
-########## 04:39:51  PHASE 10  idempotency -- run the exact same command again on an installed box
-==> Installing cortex-gateway
-  FAIL  cortex-gateway -- no pyproject.toml at /workspace/cortex-gateway. remedy: the gateway lane has not landed yet; re-run this installer once it has, or set CORTEX_GATEWAY_SRC
+########## 04:48:41  PHASE 10  idempotency -- run the exact same command again on an installed box
 
 ==> Installing cortex-mind
-  ok    mind     /home/rehearse/.local/share/cortex/mind (7 files)
+  ok    mind     /home/rehearse/.local/share/cortex/mind (9 files)
 
 ==> Installing cortex-pack-tmux-kit
   ok    pack     /home/rehearse/.local/share/cortex/packs/tmux-kit (10 files)
@@ -205,7 +215,9 @@ gateway not reachable (see doctor above for whether it is installed)
 ==> Configuring
   warn  openai   no key (no $OPENAI_API_KEY, no terminal to prompt on)
   warn           remedy: printf '%s' sk-... > /home/rehearse/.config/cortex/gateway/openai_key && chmod 600 /home/rehearse/.config/cortex/gateway/openai_key
+  ok    gateway  already configured in /home/rehearse/.config/cortex/gateway (use --force-config to regenerate)
   ok    drumbeat workspace automations -> /home/rehearse/.local/share/cortex/mind/automations
+  ok    drumbeat workspace prompts -> /home/rehearse/.local/share/cortex/mind/prompts
   ok    drumbeat packs.txt already present (use --force-config to regenerate)
 
 ==> Starting services (tmux session 'cortex')
@@ -214,34 +226,34 @@ Use "cortex restart" to cycle it, or "cortex status" to see health.
 
 ==> Summary
 
-  INCOMPLETE INSTALL -- 1 component(s) did not install:
+  Cortex is installed.
 
-    - cortex-gateway -- no pyproject.toml at /workspace/cortex-gateway. remedy: the gateway lane has not landed yet; re-run this installer once it has, or set CORTEX_GATEWAY_SRC
+  Pairing page   http://127.0.0.1:7080/   (open this on the phone)
+  Gateway        https://127.0.0.1:7443/
 
-  What DID install is configured and usable. Nothing was stubbed or faked.
-  Re-run this installer once the missing pieces land -- it is idempotent.
+  Next:  cortex doctor      check everything
+         cortex status      ports, pids, health
+         cortex logs        follow the logs
 
-  Check current state with:  cortex doctor
 
-
-real	0m0.485s
-user	0m0.357s
-sys	0m0.161s
+real	0m1.072s
+user	0m0.755s
+sys	0m0.294s
 REINSTALL_EXIT=0
 
-########## 04:39:52  PHASE 11  the secret never leaks
+########## 04:48:42  PHASE 11  the secret never leaks
 -- no key was provided, so there must be no key file and no key in any response --
 ls: cannot access '/home/rehearse/.config/cortex/gateway/openai_key': No such file or directory
 no key file: correct, none was given
 0
 0 occurrences of sk- in the page: correct
 
-########## 04:39:52  PHASE 12  the read-only mount was never written to
+########## 04:48:42  PHASE 12  the read-only mount was never written to
 touch: cannot touch '/workspace/cortex/PROOF-RO': Read-only file system
 workspace is read-only: confirmed
 -- and the tmux session created is ours alone --
-cortex: 2 windows (created Mon Aug 10 04:39:49 2026)
+cortex: 3 windows (created Mon Aug 10 04:48:40 2026)
 
-########## 04:39:52  DONE
+########## 04:48:42  DONE
 
-=== rehearsal finished 2026-08-09T21:39:52-07:00 (docker rc=0) ===
+=== rehearsal finished 2026-08-09T21:48:43-07:00 (docker rc=0) ===

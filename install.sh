@@ -396,10 +396,11 @@ default and belongs to a DIFFERENT, live instance -- never bind it from here.
 EOF
 
 # ---------------------------------------------------------------- 10. start
+START_RC=0
 if [ "$DO_START" -eq 1 ]; then
   step "Starting services (tmux session '${TMUX_SESSION}')"
   if [ -x "${CORTEX_BIN}/cortex" ]; then
-    "${CORTEX_BIN}/cortex" start || warn "one or more services did not start -- run 'cortex doctor'"
+    "${CORTEX_BIN}/cortex" start; START_RC=$?
   fi
 else
   step "Skipping start (--no-start)"
@@ -411,7 +412,21 @@ step "Summary"
 LAN_IP="$(ip -4 -o addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}')"
 LAN_IP="${LAN_IP:-127.0.0.1}"
 
-if [ ${#MISSING[@]} -eq 0 ]; then
+# A component that installed cleanly and then died on startup is not a success.
+# Reporting "Cortex is installed" over a crashed service is the exact false green
+# this installer exists to refuse.
+if [ ${#MISSING[@]} -eq 0 ] && [ "$START_RC" -ne 0 ]; then
+  say ""
+  say "  ${C_ERR}INSTALLED, BUT NOT EVERYTHING CAME UP${C_0}"
+  say ""
+  say "  Every component installed. At least one service exited instead of"
+  say "  starting -- named above, with its last words."
+  say ""
+  say "  Next:  cortex doctor          which service, and why"
+  say "         cortex logs <service>  the full trace (its tmux window is kept open)"
+  say ""
+  exit 3
+elif [ ${#MISSING[@]} -eq 0 ]; then
   say ""
   say "  ${C_OK}Cortex is installed.${C_0}"
   say ""

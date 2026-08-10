@@ -287,6 +287,7 @@ cmd_start() {
     return 0
   fi
   local started=0 skipped=0
+  STARTED_SVCS=""
 
   # Refuse to start on top of someone else's listener.
   local p
@@ -300,7 +301,13 @@ cmd_start() {
 
   local gb
   if gb=$(gateway_bin); then
-    start_window gateway "'${gb}' serve --port ${GATEWAY_PORT}"; started=$((started+1))
+    # Ask the gateway what its serve command accepts rather than assuming. It
+    # takes its port from the config that `setup` wrote; passing an unrecognised
+    # --port kills it on launch.
+    local gwargs=""
+    if "$gb" serve --help 2>&1 | grep -q -- '--port'; then gwargs=" --port ${GATEWAY_PORT}"; fi
+    start_window gateway "'${gb}' serve${gwargs}"
+    started=$((started+1)); STARTED_SVCS="${STARTED_SVCS} gateway"
   else
     printf '%sskip%s gateway -- not installed (cortex doctor names the remedy)\n' "$C_WARN" "$C_0"; skipped=$((skipped+1))
   fi
@@ -308,7 +315,7 @@ cmd_start() {
   if [ -x "${DRUMBEAT_HOME}/venv/bin/drumbeat" ]; then
     if [ -d "${DRUMBEAT_WS}/automations" ]; then
       start_window drumbeat "'${DRUMBEAT_HOME}/venv/bin/drumbeat' serve --workspace '${DRUMBEAT_WS}' --port ${DRUMBEAT_PORT}"
-      started=$((started+1))
+      started=$((started+1)); STARTED_SVCS="${STARTED_SVCS} drumbeat"
     else
       printf '%sskip%s drumbeat -- workspace has no automations/; the engine would refuse to start anyway\n' "$C_WARN" "$C_0"
       skipped=$((skipped+1))
@@ -321,7 +328,7 @@ cmd_start() {
     local hubpy="python3"
     [ -x "${HUB_HOME}/venv/bin/python" ] && hubpy="${HUB_HOME}/venv/bin/python"
     start_window hub "'${hubpy}' '${HUB_HOME}/serve.py' --port ${HUB_PORT} --dist-dir '${DIST_DIR}' --gateway-port ${GATEWAY_PORT}"
-    started=$((started+1))
+    started=$((started+1)); STARTED_SVCS="${STARTED_SVCS} hub"
   else
     printf '%sskip%s hub -- not installed\n' "$C_WARN" "$C_0"; skipped=$((skipped+1))
   fi
@@ -330,9 +337,39 @@ cmd_start() {
     printf '%serror:%s nothing to start -- no components are installed. Run install.sh.\n' "$C_ERR" "$C_0" >&2
     return 1
   fi
-  sleep 2
-  printf 'started %d service(s)' "$started"; [ "$skipped" -gt 0 ] && printf ', skipped %d (not installed)' "$skipped"; printf '\n'
+
+  # Launching a tmux window is not the same as a service coming up. Wait for each
+  # one to actually accept a connection before claiming anything: a service that
+  # crashes 200ms after launch must never be reported as started.
+  local up=0 dead=0 svc port waited
+  for svc in $STARTED_SVCS; do
+    case "$svc" in
+      gateway)  port=$GATEWAY_PORT ;;
+      drumbeat) port=$DRUMBEAT_PORT ;;
+      hub)      port=$HUB_PORT ;;
+      *) continue ;;
+    esac
+    waited=0
+    while [ "$waited" -lt 15 ]; do
+      port_open "$port" && break
+      sleep 1; waited=$((waited+1))
+    done
+    if port_open "$port"; then
+      printf '%sup%s   %-9s :%s\n' "$C_OK" "$C_0" "$svc" "$port"; up=$((up+1))
+    else
+      printf '%sDEAD%s %-9s :%s did not come up within %ss\n' "$C_ERR" "$C_0" "$svc" "$port" "$waited"
+      printf '     last words: %s\n' "$(grep -v '^\[cortex\]' "${LOG_DIR}/${svc}.log" 2>/dev/null | tail -1 | cut -c1-140)"
+      printf '     remedy: cortex logs %s   (its tmux window is kept open with the full trace)\n' "$svc"
+      dead=$((dead+1))
+    fi
+  done
+
+  printf '\n%d up' "$up"
+  [ "$dead" -gt 0 ]    && printf ', %s%d dead%s' "$C_ERR" "$dead" "$C_0"
+  [ "$skipped" -gt 0 ] && printf ', %d skipped (not installed)' "$skipped"
+  printf '\n'
   printf 'attach with: tmux attach -t %s\n' "$TMUX_SESSION"
+  [ "$dead" -gt 0 ] && return 1
   return 0
 }
 

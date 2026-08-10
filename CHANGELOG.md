@@ -54,10 +54,15 @@ All notable, user-visible changes to the Cortex hub lane.
 ### Verified
 
 - **Fresh-container install rehearsal** on stock `ubuntu:24.04` as an
-  unprivileged user against a read-only workspace: bare box to serving
-  distribution page in **22 seconds** (3.1s of that is `install.sh`), idempotent
-  re-run in 0.49s. Transcript and analysis in
-  [`EVIDENCE/rehearsal.md`](EVIDENCE/rehearsal.md), raw log alongside it.
-- The rehearsal found five defects invisible on the dev host — including a
-  status line that read `down` next to `200`, and a `/dev/tty` probe that passed
-  where no terminal existed. All fixed; see the defect table in the evidence.
+  unprivileged user against a read-only workspace, with nothing pre-installed:
+  bare box to all three services live in **23 seconds** (3.76s of that is
+  `install.sh`), `cortex doctor` **all checks passed**, gateway `/healthz` 200
+  with TLS verified against the CA on disk, idempotent re-run in 1.07s.
+  Transcript and analysis in [`EVIDENCE/rehearsal.md`](EVIDENCE/rehearsal.md).
+- **`cortex doctor` on the demo host**: all checks passed, gateway + drumbeat +
+  hub live. See [`EVIDENCE/doctor-thishost.md`](EVIDENCE/doctor-thishost.md).
+- The rehearsal found eight defects invisible on the dev host — among them a
+  `start` that reported success for a service which had already exited, an
+  installer that printed "Cortex is installed" over a crashed gateway, and a
+  `--port` flag passed to a CLI that does not accept it. All fixed; full table
+  in the evidence.

@@ -21,7 +21,7 @@ Reproduce with `./EVIDENCE/rehearse.sh`. Full unedited transcript:
 | Workspace | `/home/bkrabach/dev/cortex-core` mounted **read-only** at `/workspace` |
 | drumbeat | `~/dev/amplifier-attention-manager/drumbeat` mounted **read-only** at `/drumbeat` |
 | OpenAI key | **deliberately not provided** — the missing-key path is the thing under test |
-| Run date | 2026-08-10 04:39:30 UTC |
+| Run date | 2026-08-10 04:48:19 UTC |
 
 ---
 
@@ -29,57 +29,83 @@ Reproduce with `./EVIDENCE/rehearse.sh`. Full unedited transcript:
 
 | Phase | Wall clock | Elapsed |
 |---|---|---|
-| Phase 0 — stock box, nothing installed | 04:39:30 | — |
-| Phase 3 — `apt-get install` prerequisites done | 04:39:47 | 17s |
-| Phase 4 — `uv` installed as the user | 04:39:48 | 18s |
-| Phase 5 — **`./install.sh` finished** | 04:39:51 | 21s (**3.09s** for install.sh itself) |
-| Phase 6-9 — doctor, status, page serving, gateway probe | 04:39:51 | 21s |
-| Phase 12 — done | 04:39:52 | **22s total** |
-| Phase 10 — idempotent re-run of the same command | — | **0.49s** |
+| Phase 0 — stock box, nothing installed | 04:48:19 | — |
+| Phase 3 — `apt-get install` prerequisites done | 04:48:36 | 17s |
+| Phase 4 — `uv` installed as the user | 04:48:37 | 18s |
+| Phase 5 — **`./install.sh` finished, all three services up** | 04:48:41 | 22s (**3.76s** for install.sh itself) |
+| Phase 6-9 — doctor, status, page, gateway healthz | 04:48:41 | 22s |
+| Phase 12 — done | 04:48:42 | **23s total** |
+| Phase 10 — idempotent re-run of the same command | — | **1.07s** |
 
-Bare box to serving distribution page: **22 seconds**, of which 17 were `apt`.
-
----
+Bare box to a fully serving stack: **23 seconds**, of which 17 were `apt`.
 
 ## Results against the DONE gate
 
 | Gate | Result | Evidence |
 |---|---|---|
 | Install runs as a normal user from a read-only workspace | **PASS** | Phase 5; Phase 12 confirms `/workspace` rejected a write |
-| `cortex doctor` green apart from genuinely-absent pieces | **PASS** with 2 named FAILs, both the gateway lane | Phase 6 |
-| Missing OpenAI key reported honestly, install continues | **PASS** | Phase 6: `WARN openai key absent -- voice minting will 503 (by design, naming the remedy)` |
+| `cortex doctor` all green | **PASS** — `doctor: all checks passed`, `DOCTOR_EXIT=0` | Phase 6 |
+| Missing OpenAI key reported honestly, install continues | **PASS** — reported as a named WARN, not hidden, not fatal | Phase 6 |
 | `:7080` page serves | **PASS** | Phase 8: `GET / -> 200`, `GET /healthz -> 200` |
-| Gateway healthz 200 | **NOT REACHED** — gateway not installable at run time | Phase 9: `https healthz -> 000`; see below |
-| Idempotent | **PASS** | Phase 10: same command, 0.49s, `already running -- nothing to start`, no clobbering |
+| Gateway healthz 200 | **PASS** — TLS verified against the CA on disk, no `curl -k` | Phase 9 |
+| Idempotent | **PASS** | Phase 10: same command, 1.07s, no clobbering |
 
-### The one gate not met, and why
-
-`cortex-gateway` has published `CONTRACT.md` but no `pyproject.toml` yet, so there
-is nothing to install. Both FAILs in Phase 6 trace to that single fact:
+All three services came up on a box that had nothing 22 seconds earlier:
 
 ```
-FAIL  gateway     not installed
-      remedy: the gateway lane's checkout must exist, then re-run install.sh
-FAIL  gateway :7443   not listening
-      remedy: cortex start; then cortex logs gateway
+up   gateway   :7443
+up   drumbeat  :9102
+up   hub       :7080
+
+3 up
 ```
 
-This is recorded as an honest miss, not worked around. **Nothing was stubbed.** The
-installer named the component, installed everything else, and exited 2 —
-`INSTALL_EXIT=2`, an incomplete install refusing to report success. The moment
-that lane ships a `pyproject.toml`, re-running the identical command picks it up;
-the rehearsal is re-runnable in 22 seconds to confirm.
+```
+Components
+PASS  gateway     /home/rehearse/.local/share/cortex/gateway/venv/bin/cortex-gateway
+PASS  drumbeat    /home/rehearse/.local/share/cortex/drumbeat/venv/bin/drumbeat
+PASS  hub         /home/rehearse/.local/share/cortex/hub/serve.py
+PASS  mind        /home/rehearse/.local/share/cortex/mind
+PASS  pack        /home/rehearse/.local/share/cortex/packs/tmux-kit
 
-What *did* come up, unaided, on a box that had nothing 20 seconds earlier:
+Services
+PASS  tmux session   'cortex' (3 windows)
+PASS  hub :7080      healthz 200
+PASS  gateway :7443  healthz 200, TLS verified against the CA it serves at /api/ca
+PASS  drumbeat :9102 api/health 200
+
+doctor: all checks passed (2 warning(s) -- named above, none fatal)
+DOCTOR_EXIT=0
+```
+
+Phase 9, verified against the CA `cortex-gateway setup` wrote to disk:
 
 ```
-PASS  drumbeat :9102         api/health 200
-PASS  hub :7080              healthz 200
-PASS  tmux session           'cortex' (2 windows)
-PASS  drumbeat packs.txt     1 pack(s)
+using CA: /home/rehearse/.config/cortex/gateway/tls/ca.pem
+https healthz -> 200
+body: {"status":"ok","service":"cortex-gateway","version":"0.1.0","time":"...","port":7443}
 ```
 
----
+### The two warnings, both intended
+
+- **`openai key absent`** — no key was supplied to this run on purpose. The stack
+  installs and runs; voice minting will 503 naming its remedy. Reported loudly,
+  never hidden, and non-fatal.
+- **`android apk not built yet`** — the android lane had not published a build at
+  run time. The hub serves an honest 404 at `/cortex.apk` rather than a
+  placeholder. The moment a build lands in `dist/`, the download goes live with
+  no restart; re-run this rehearsal to confirm it.
+
+### An earlier run of this same rehearsal caught a real failure
+
+At 04:39 the gateway lane had published `CONTRACT.md` but no installable
+package. The rehearsal recorded that honestly — `INCOMPLETE INSTALL`,
+`INSTALL_EXIT=2`, two named FAILs — rather than papering over it. At 04:43 the
+package existed but crashed on launch, and the installer reported
+`INSTALLED, BUT NOT EVERYTHING CAME UP` with the traceback's last line, exit 3.
+Both intermediate states are the system behaving correctly under a
+partially-built stack. The 04:48 run above is the same command against a
+complete one.
 
 ## Behaviours specifically exercised
 
@@ -141,19 +167,25 @@ and would have surfaced in front of the stakeholder.
 
 | # | Defect | Fix |
 |---|---|---|
-| 1 | The rehearsal script itself picked up an ambient `IMAGE=nvcr.io/nvidia/vllm` from the operator's shell and rehearsed against a CUDA image instead of Ubuntu. A generic env var name got captured. | Namespaced to `CORTEX_REHEARSAL_IMAGE`, and the run is invoked with `env -u IMAGE`. |
-| 2 | `docker run` without `-i` silently discarded the entire container script — exit 0, no output, a green result that tested nothing. | Added `-i`; a run that executes nothing can no longer look like a pass. |
-| 3 | `[ -r /dev/tty ]` returned true inside `docker run` with no TTY behind it, so the key prompt printed and then errored: `/dev/tty: No such device or address`. | The probe now *opens* the device (`exec 3< /dev/tty`) — the only honest test. Same path protects `curl \| bash`. |
-| 4 | `cortex status` showed `STATE=down` beside `HEALTH=200` on a minimal box, because neither `ss` nor `lsof` exists there and state was inferred from pid lookup. A status line that contradicts itself. | State now comes from whether the port actually accepts a connection; pid shows `n/a` when it cannot be resolved. |
-| 5 | Remedy text rendered as `printf '%%s' sk-...` — a literal that would fail if pasted. | Corrected to `printf '%s'`; grep confirms 0 occurrences of `%%s` in the transcript. |
+| 1 | `cortex start` reported "started 3 service(s)" for a gateway that had exited 200ms later. Launching a tmux window is not a service coming up. | Start now waits for each port to actually accept a connection, prints `up`/`DEAD` per service with the dead one's last log line, and returns non-zero. |
+| 2 | `install.sh` printed "Cortex is installed" and exited 0 over a crashed service, because every *component* had installed. | New outcome: `INSTALLED, BUT NOT EVERYTHING CAME UP`, exit 3. Complete install with a dead service is not success. |
+| 3 | The gateway was launched with `serve --port 7443`, which its CLI does not accept — it takes the port from the config `setup` wrote. It died instantly on an unrecognised argument. | Start probes `serve --help` and passes `--port` only if advertised. Assumed flags are how you kill a service you just installed. |
+| 4 | `[ -r /dev/tty ]` returned true inside `docker run` with no TTY behind it, so the key prompt printed and then errored: `/dev/tty: No such device or address`. | The probe now *opens* the device (`exec 3< /dev/tty`) — the only honest test. Same path protects `curl \| bash`. |
+| 5 | `cortex status` showed `STATE=down` beside `HEALTH=200` on a minimal box, because neither `ss` nor `lsof` exists there and state was inferred from pid lookup. A status line that contradicts itself. | State now comes from whether the port actually accepts a connection; pid shows `n/a` when it cannot be resolved. |
+| 6 | Remedy text rendered as `printf '%%s' sk-...` — a literal that fails if pasted. | Corrected to `printf '%s'`; grep confirms 0 occurrences in the transcript. |
+| 7 | The rehearsal script itself picked up an ambient `IMAGE=nvcr.io/nvidia/vllm` from the operator's shell and rehearsed against a CUDA image instead of Ubuntu. | Namespaced to `CORTEX_REHEARSAL_IMAGE`; the run is invoked with `env -u IMAGE`. |
+| 8 | `docker run` without `-i` silently discarded the entire container script — exit 0, no output, a green result that tested nothing. | Added `-i`. A run that executes nothing can no longer look like a pass. |
 
-Two further defects were caught on the dev host before this run: the hub crashed
-on startup because segno's SVG writer emits bytes into a `StringIO`, and
-`http_code` concatenated two codes into `000000` on failure. Both were visible
-only because the tmux window is kept open on crash and the log is written with
-`tee -a`.
+Two further defects were caught on the dev host before the first container run:
+the hub crashed on startup because segno's SVG writer emits bytes into a
+`StringIO`, and `http_code` concatenated two codes into `000000` on failure.
+Both were visible only because the tmux window is kept open on crash and the log
+is written with `tee -a`.
 
----
+A ninth was self-inflicted and worth recording: a `pkill -f` issued to clean up a
+test server matched the very shell that ran it. That is precisely why
+`cortex stop` drains by procedure and kills by session name, and why no code in
+this lane uses `pkill -f`.
 
 ## Re-run
 

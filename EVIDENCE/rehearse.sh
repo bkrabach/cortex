@@ -93,8 +93,15 @@ echo "-- the page carries a QR and the gateway URL --"
 su rehearse -c 'curl -s http://127.0.0.1:7080/ | grep -o "<svg[^>]*" | head -1'
 su rehearse -c 'curl -s http://127.0.0.1:7080/ | grep -o "https://[^<]*:7443/" | head -1'
 
-mark "PHASE 9  gateway healthz"
-su rehearse -c 'curl -s -o /dev/null -w "https healthz -> %{http_code}\n" --max-time 5 https://127.0.0.1:7443/healthz 2>/dev/null || echo "gateway not reachable (see doctor above for whether it is installed)"'
+mark "PHASE 9  gateway healthz -- TLS verified against the CA setup wrote, never curl -k"
+su rehearse -c 'CA=$HOME/.config/cortex/gateway/tls/ca.pem
+  if [ -f "$CA" ]; then
+    echo "using CA: $CA"
+    curl -s -o /dev/null -w "https healthz -> %{http_code}\n" --max-time 5 --cacert "$CA" https://127.0.0.1:7443/healthz
+    echo "body: $(curl -s --max-time 5 --cacert "$CA" https://127.0.0.1:7443/healthz)"
+  else
+    echo "no CA on disk at $CA -- gateway setup did not run (see doctor above)"
+  fi'
 
 mark "PHASE 10  idempotency -- run the exact same command again on an installed box"
 su rehearse -c 'export PATH=$HOME/.local/bin:$PATH
