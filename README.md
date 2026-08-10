@@ -56,17 +56,31 @@ clobber your key, your config, or a running stack.
 2. **Download Cortex for Android** from that page and install it. Android will
    warn you about installing outside the Play Store; allow it for your browser.
    This is a direct build, not a store release.
-3. **Scan the QR code** on the same page, or type the gateway address into the
-   app. The QR encodes `https://<host>:7443/`.
-4. On the host, run `cortex-gateway pair`. It prints a short code
-   (`xxxx-xxxx`, good for 15 minutes, single use). Enter it in the app.
-5. Say **"what needs me?"** That exercises voice, the gateway, and the engine in
+3. Open Cortex and tap **Settings**. That is the pairing screen: two fields and a
+   Pair button. **There is no QR scanner in the app** — the QR on the page exists
+   only to open that page on the phone.
+4. Type the gateway address into **Gateway URL** — `https://<host>:7443`, shown
+   exactly on the page. The field is pre-filled with an emulator address; replace it.
+5. Tap **Get pairing code** on the page. It mints a short code (`xxxx-xxxx`, good
+   for 15 minutes, single use). From a terminal, `cortex pair` does the same thing.
+6. Type the code into **Pairing code** and tap **Pair**. The log underneath shows
+   `→ POST /v1/pair` then `✓ paired`.
+7. Say **"what needs me?"** That exercises voice, the gateway, and the engine in
    one shot. On a fresh install the honest answer is "nothing" — that is a
    working system, not a broken one.
 
 The gateway uses its own certificate authority. The app fetches and trusts it
 during pairing. Nothing here asks you to disable certificate checking, and you
 should be suspicious of anything that does.
+
+**Known follow-up — gate the page-side mint.** `POST /pair/new` on the hub is
+unauthenticated, like the page that hosts it: anyone who can reach `:7080` can
+mint a pairing code. Today that is bounded by the credential rather than the
+caller — 900 s TTL, single use, every mint logged — and it sits on the same
+LAN/tailnet surface that already serves the APK and the by-design-unauthenticated
+`POST /v1/pair`. That is acceptable for a trusted network and not past it. The fix
+is to gate the page-side mint (an operator-held secret, or binding it to a
+short window opened from the host). Not built yet.
 
 ---
 
@@ -79,6 +93,7 @@ cortex logs       # tail all services   (cortex logs gateway -f to follow one)
 cortex start      # start the stack
 cortex stop       # drain, then stop
 cortex restart
+cortex pair       # mint a single-use pairing code for the phone
 cortex url        # the pairing URL
 ```
 

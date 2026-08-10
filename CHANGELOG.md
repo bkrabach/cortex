@@ -4,6 +4,23 @@ All notable, user-visible changes to the Cortex hub lane.
 
 ## [Unreleased]
 
+### Fixed
+
+- **You can now get a pairing code without reading the source.** The gateway
+  always had one (`cortex-gateway pair`), but it lives inside a venv under
+  `~/.local/share/cortex/gateway/` that the page never mentioned — so the phone
+  asked for a code that existed nowhere a person could reach. The distribution
+  page has a **Get pairing code** button, and there is a **`cortex pair`** command
+  for the terminal. Both print the code, its expiry, and that it is single use.
+- **The page no longer promises a QR scanner the app does not have.** It said
+  *"Open Cortex → Pair → scan"*. The Android app has two text fields and a Pair
+  button; there is no scanner in it. The instructions are now the five steps the
+  app actually puts in front of you — install, Settings, type the gateway URL
+  (shown exactly), get a code, type it and tap Pair.
+- **The QR code now points at this page, not the gateway.** Scanning the old one
+  produced the gateway address in a camera app, with nothing able to accept it.
+  It is labelled for what it does: open this page on the phone.
+
 ### Added
 
 - **`install.sh`** — one-command, curl-pipeable, idempotent installer for the whole

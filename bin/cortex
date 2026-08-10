@@ -7,6 +7,7 @@
 #   cortex start       start services in tmux session 'cortex'
 #   cortex stop        drain and stop them
 #   cortex restart     stop, then start
+#   cortex pair [tag]  mint a single-use pairing code for the phone
 #   cortex url         print the pairing URL
 #
 # Safety rules this script will not break (CONTRACT-PINS.md law 3):
@@ -415,9 +416,50 @@ cmd_logs() {
   tail -n 100 $follow $files
 }
 
+# --------------------------------------------------------------------- pair
+# Minting lives in the gateway, which owns the pairing rail. This is a thin
+# front door onto `cortex-gateway pair` so a terminal user never has to know
+# where the gateway venv landed. It prints a code or it fails loudly -- it
+# never synthesises one, because a code the gateway has not recorded cannot be
+# redeemed by the gateway that has to honour it.
+cmd_pair() {
+  local label="${1:-terminal}" gb out rc
+  if ! gb=$(gateway_bin); then
+    printf '%serror:%s the cortex-gateway CLI is not installed at %s\n' "$C_ERR" "$C_0" "${GATEWAY_HOME}/venv/bin/" >&2
+    printf '  remedy: run install.sh, then re-run "cortex doctor"\n' >&2
+    return 1
+  fi
+  out=$("$gb" pair --label "$label" 2>&1); rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%serror:%s cortex-gateway pair exited %s\n' "$C_ERR" "$C_0" "$rc" >&2
+    printf '%s\n' "$out" | sed 's/^/  /' >&2
+    printf '  remedy: if the gateway is unconfigured, run "%s setup"; then "cortex doctor"\n' "$gb" >&2
+    return 1
+  fi
+
+  local code expires
+  code=$(printf '%s\n' "$out" | grep -oE '[0-9a-f]{4}-[0-9a-f]{4}' | head -1)
+  expires=$(printf '%s\n' "$out" | sed -n 's/^expires:[[:space:]]*//p' | head -1)
+  if [ -z "$code" ]; then
+    printf '%serror:%s cortex-gateway pair succeeded but printed no recognisable code:\n' "$C_ERR" "$C_0" >&2
+    printf '%s\n' "$out" | sed 's/^/  /' >&2
+    return 1
+  fi
+
+  printf '\n  %spairing code%s   %s%s%s\n' "$C_DIM" "$C_0" "$C_B" "$code" "$C_0"
+  printf '  %sexpires%s        %s\n' "$C_DIM" "$C_0" "${expires:-unknown}"
+  printf '  %ssingle use%s     redeeming it once spends it\n\n' "$C_DIM" "$C_0"
+  printf 'On the phone: open Cortex -> Settings, then\n'
+  printf '  Gateway URL    %shttps://%s:%s%s\n' "$C_B" "$(lan_ip)" "$GATEWAY_PORT" "$C_0"
+  printf '  Pairing code   %s%s%s\n' "$C_B" "$code" "$C_0"
+  printf 'and tap Pair. (Full walkthrough: %s)\n' "http://$(lan_ip):${HUB_PORT}/"
+}
+
 cmd_url() { printf 'http://%s:%s/\n' "$(lan_ip)" "$HUB_PORT"; }
 
-usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; }
+# Print the comment header, however long it is. A fixed line range silently
+# starts leaking source code the moment a command is added to the header.
+usage() { awk 'NR<2{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"; }
 
 case "${1:-status}" in
   doctor)  shift; cmd_doctor "$@" ;;
@@ -426,6 +468,7 @@ case "${1:-status}" in
   stop)    shift; cmd_stop "$@" ;;
   restart) shift; cmd_restart "$@" ;;
   logs)    shift; cmd_logs "$@" ;;
+  pair)    shift; cmd_pair "$@" ;;
   url)     shift; cmd_url "$@" ;;
   -h|--help|help) usage ;;
   *) printf 'unknown command: %s\n\n' "$1" >&2; usage >&2; exit 1 ;;
