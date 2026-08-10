@@ -50,3 +50,14 @@ All notable, user-visible changes to the Cortex hub lane.
   as untouched neighbours. Note that 9100 is drumbeat's *default* port and
   belongs to a different instance — the Cortex instance is always started with
   an explicit `--port 9102`.
+
+### Verified
+
+- **Fresh-container install rehearsal** on stock `ubuntu:24.04` as an
+  unprivileged user against a read-only workspace: bare box to serving
+  distribution page in **22 seconds** (3.1s of that is `install.sh`), idempotent
+  re-run in 0.49s. Transcript and analysis in
+  [`EVIDENCE/rehearsal.md`](EVIDENCE/rehearsal.md), raw log alongside it.
+- The rehearsal found five defects invisible on the dev host — including a
+  status line that read `down` next to `200`, and a `/dev/tty` probe that passed
+  where no terminal existed. All fixed; see the defect table in the evidence.

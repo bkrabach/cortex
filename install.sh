@@ -275,11 +275,20 @@ fi
 # ---------------------------------------------------------------- 8. pack
 step "Installing cortex-pack-tmux-kit"
 if [ -f "${CORTEX_PACK_SRC}/pack.md" ]; then
-  mkdir -p "$(dirname "$PACK_HOME")"
-  rm -rf "$PACK_HOME"
-  cp -a "$CORTEX_PACK_SRC" "$PACK_HOME"
-  rm -rf "${PACK_HOME}/.git"
-  ok "pack     ${PACK_HOME}"
+  mkdir -p "$PACK_HOME"
+  # Copy the pack contract and its tools -- not the author's build tree. A
+  # copied .venv carries absolute paths from another machine and is worse than
+  # useless here.
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --exclude '.git' --exclude '.venv' --exclude '.ruff_cache' \
+          --exclude '__pycache__' --exclude 'EVIDENCE' --exclude 'GOAL.md' \
+          --exclude 'lane.log' --exclude 'BLOCKED.md' "${CORTEX_PACK_SRC}/" "${PACK_HOME}/"
+  else
+    (cd "$CORTEX_PACK_SRC" && tar --exclude='.git' --exclude='.venv' --exclude='.ruff_cache' \
+        --exclude='__pycache__' --exclude='EVIDENCE' --exclude='GOAL.md' \
+        --exclude='lane.log' --exclude='BLOCKED.md' -cf - .) | (cd "$PACK_HOME" && tar -xf -)
+  fi
+  ok "pack     ${PACK_HOME} ($(find "$PACK_HOME" -type f | wc -l) files)"
 elif [ -d "$CORTEX_PACK_SRC" ]; then
   missing "cortex-pack-tmux-kit -- ${CORTEX_PACK_SRC} exists but has no pack.md, which drumbeat's pack contract requires (it refuses to load a pack without one). remedy: the pack lane has not shipped pack.md yet; re-run this installer once it has"
 else
@@ -297,20 +306,23 @@ if [ -s "$OPENAI_KEY_FILE" ] && [ "$FORCE_CONFIG" -eq 0 ]; then
 elif [ -n "${OPENAI_API_KEY:-}" ]; then
   umask 077; printf '%s\n' "$OPENAI_API_KEY" > "$OPENAI_KEY_FILE"; chmod 600 "$OPENAI_KEY_FILE"
   ok "openai   key written from \$OPENAI_API_KEY to ${OPENAI_KEY_FILE} (0600)"
-elif [ -r /dev/tty ]; then
+elif { exec 3< /dev/tty; } 2>/dev/null; then
+  # Opening it is the only honest test. /dev/tty can be present and readable by
+  # mode while having no controlling terminal behind it -- which is exactly what
+  # happens under `docker run` without -t, and under curl | bash.
   printf '  OpenAI API key (input hidden, press Enter to skip): '
-  _key=""; read -r -s _key < /dev/tty || true; printf '\n'
+  _key=""; read -r -s _key <&3 || true; exec 3<&-; printf '\n'
   if [ -n "$_key" ]; then
     umask 077; printf '%s\n' "$_key" > "$OPENAI_KEY_FILE"; chmod 600 "$OPENAI_KEY_FILE"
     unset _key
     ok "openai   key written to ${OPENAI_KEY_FILE} (0600)"
   else
     warn "openai   no key given -- voice minting will 503 until you provide one"
-    warn "         remedy: printf '%%s' sk-... > ${OPENAI_KEY_FILE} && chmod 600 ${OPENAI_KEY_FILE}"
+    warn "         remedy: printf '%s' sk-... > ${OPENAI_KEY_FILE} && chmod 600 ${OPENAI_KEY_FILE}"
   fi
 else
   warn "openai   no key (no \$OPENAI_API_KEY, no terminal to prompt on)"
-  warn "         remedy: printf '%%s' sk-... > ${OPENAI_KEY_FILE} && chmod 600 ${OPENAI_KEY_FILE}"
+  warn "         remedy: printf '%s' sk-... > ${OPENAI_KEY_FILE} && chmod 600 ${OPENAI_KEY_FILE}"
 fi
 
 # --- gateway setup. Only invoke a subcommand the gateway actually advertises.

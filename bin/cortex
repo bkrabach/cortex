@@ -165,7 +165,7 @@ cmd_doctor() {
     else warn "openai key" "mode ${mode}, want 0600"; note "remedy: chmod 600 ${OPENAI_KEY_FILE}"; fi
   else
     warn "openai key" "absent -- voice minting will 503 (by design, naming the remedy)"
-    note "remedy: printf '%%s' sk-... > ${OPENAI_KEY_FILE} && chmod 600 ${OPENAI_KEY_FILE}"
+    note "remedy: printf '%s' sk-... > ${OPENAI_KEY_FILE} && chmod 600 ${OPENAI_KEY_FILE}"
     note "        read per-request: no restart needed once the file exists"
   fi
   if [ -d "$GATEWAY_CONF" ]; then pass "gateway config" "$GATEWAY_CONF"
@@ -251,13 +251,16 @@ cmd_status() {
   printf '%sCortex status%s  %s\n\n' "$C_B" "$C_0" "$(date -Is)"
   printf '%-10s %-7s %-10s %-8s %s\n' SERVICE PORT STATE PID HEALTH
   printf '%-10s %-7s %-10s %-8s %s\n' ------- ---- ----- --- ------
+  # State comes from whether the port actually accepts a connection, not from
+  # whether we could name a pid. ss and lsof are both absent on a minimal box,
+  # and "down" next to "200" is a status line that lies.
   local pid state
-  pid=$(port_pid "$GATEWAY_PORT");  state=$([ -n "$pid" ] && echo up || echo down)
-  printf '%-10s %-7s %-10s %-8s %s\n' gateway "$GATEWAY_PORT" "$state" "${pid:--}" "$(https_code "https://127.0.0.1:${GATEWAY_PORT}/healthz")"
-  pid=$(port_pid "$DRUMBEAT_PORT"); state=$([ -n "$pid" ] && echo up || echo down)
-  printf '%-10s %-7s %-10s %-8s %s\n' drumbeat "$DRUMBEAT_PORT" "$state" "${pid:--}" "$(http_code "http://127.0.0.1:${DRUMBEAT_PORT}/api/health")"
-  pid=$(port_pid "$HUB_PORT");      state=$([ -n "$pid" ] && echo up || echo down)
-  printf '%-10s %-7s %-10s %-8s %s\n' hub "$HUB_PORT" "$state" "${pid:--}" "$(http_code "http://127.0.0.1:${HUB_PORT}/healthz")"
+  state=$(port_open "$GATEWAY_PORT" && echo up || echo down); pid=$(port_pid "$GATEWAY_PORT")
+  printf '%-10s %-7s %-10s %-8s %s\n' gateway "$GATEWAY_PORT" "$state" "${pid:-n/a}" "$(https_code "https://127.0.0.1:${GATEWAY_PORT}/healthz")"
+  state=$(port_open "$DRUMBEAT_PORT" && echo up || echo down); pid=$(port_pid "$DRUMBEAT_PORT")
+  printf '%-10s %-7s %-10s %-8s %s\n' drumbeat "$DRUMBEAT_PORT" "$state" "${pid:-n/a}" "$(http_code "http://127.0.0.1:${DRUMBEAT_PORT}/api/health")"
+  state=$(port_open "$HUB_PORT" && echo up || echo down); pid=$(port_pid "$HUB_PORT")
+  printf '%-10s %-7s %-10s %-8s %s\n' hub "$HUB_PORT" "$state" "${pid:-n/a}" "$(http_code "http://127.0.0.1:${HUB_PORT}/healthz")"
   printf '\ntmux session %-8s %s\n' "'${TMUX_SESSION}'" "$(session_exists && echo running || echo 'not running (cortex start)')"
   printf 'pairing url  %s\n' "http://$(lan_ip):${HUB_PORT}/"
   printf 'logs         %s\n' "$LOG_DIR"
