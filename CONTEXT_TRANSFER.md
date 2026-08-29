@@ -30,8 +30,10 @@ The parent repo is `bkrabach/cortex` (a monorepo with submodules):
 ├── amplifier-foundation/                       ← microsoft/amplifier-foundation (bundles, utils)
 ├── amplifier-app-server/                       ← bkrabach/amplifier-app-server ★ MAIN SERVER
 │   ├── bundles/
-│   │   ├── cortex-core.md                      ← Web chat bundle
-│   │   └── cortex-a2a.md                       ← A2A autonomous responder bundle
+│   │   └── cortex-core.md                      ← Web chat bundle
+│   │       (cortex-a2a.md removed -- cortex-x12e/SCOPING-a2a.md: stale agent
+│   │        card advertising capabilities the shipped product never had, at
+│   │        an unconditional tier:trusted with no human in the loop)
 │   ├── config/
 │   │   └── attention-rules.md                  ← Notification scoring rules (LLM reads this)
 │   ├── context/
@@ -97,10 +99,10 @@ amplifier-server service stop      # Stop
 amplifier-server service start     # Start
 ```
 
-**The server creates 3 Amplifier sessions on startup:**
+**The server creates 2 Amplifier sessions on startup** (a 3rd, `cortex-a2a`, the
+autonomous A2A responder session, was removed -- see cortex-x12e/SCOPING-a2a.md):
 1. `notification-scorer` — Minimal session (Haiku) for fast notification scoring
 2. `cortex-core-{user_id}` — Per-user web chat session (Sonnet 4.5 with extended thinking)
-3. `cortex-a2a` — Autonomous A2A responder session (Sonnet 4.5)
 
 ### Windows Client (ALIENWARE-R13)
 
@@ -186,16 +188,21 @@ Powers the web chat. Has:
 - Time context instructions (user is Pacific Time, DB stores UTC)
 - Instructions to delegate complex notification ops to triage-manager agent
 
-### `bundles/cortex-a2a.md`
-Powers the autonomous A2A responder. Has:
-- A2A behavior (hooks-a2a-server on port 8214 + tool-a2a)
-- Anthropic provider (claude-sonnet-4-5)
-- Notification/policies tools (mounted programmatically)
-- Instructions for autonomous response to peer queries
-- Proactive trigger rules (currently only notifies ai-os)
+### `bundles/cortex-a2a.md` (REMOVED)
+Used to power an autonomous A2A responder (hooks-a2a-server on port 8214 +
+tool-a2a, proactive trigger rules notifying ai-os). Deleted per
+cortex-x12e/SCOPING-a2a.md: the card advertised an "attention management
+platform" with notification-scoring/focus-mode skills the shipped product
+never had, to four hardcoded `localhost` peers at an unconditional
+`tier: trusted`, with its own body instruction stating "there is no human in
+the loop" -- the exact inverse of the product's governing principle. Left in
+this historical section for context; do not resurrect without a real trust/
+consent model for peer agents (SCOPING-a2a.md's "Security / consent
+boundaries" section).
 
 ### `context/a2a-network.md`
-Shared by both bundles. Describes the 5-agent mesh:
+Was shared by `cortex-a2a.md` above (now removed) and `cortex-core.md`'s
+`tool-a2a` reference. Describes the 5-agent mesh:
 - ai-os (port 8210), lifeline (8211), lifeline-demo (8212), hive-slack (8213), cortex (8214)
 - Routing rules: when to ask which peer
 - Proactive triggers: only ai-os gets automatic notifications (customizable)
@@ -252,9 +259,16 @@ Shared by both bundles. Describes the 5-agent mesh:
 
 ---
 
-## 7. A2A Integration (Latest Work)
+## 7. A2A Integration (Latest Work) — cortex-a2a bundle REMOVED, see cortex-x12e/SCOPING-a2a.md
 
-### Current State
+**This whole section describes a bundle that no longer exists.** Kept for
+historical record only; do not use it as a guide to the current system, and
+do not resurrect `bundles/cortex-a2a.md` from it without first reading
+SCOPING-a2a.md's "Security / consent boundaries" section (unconditional
+`tier: trusted` for hardcoded peers, no consent representation, no human in
+the loop).
+
+### Former State (historical, pre-removal)
 - A2A server running on port 8214 ✅
 - Agent card at `http://localhost:8214/.well-known/agent.json` ✅ (skills list is empty — known issue)
 - cortex-a2a session handles incoming A2A messages autonomously ✅
@@ -343,7 +357,7 @@ amplifier-server service restart
 
 ### P0 — Fix Before Demo
 
-1. **A2A agent card skills list is empty** — When you `curl http://localhost:8214/.well-known/agent.json`, the `"skills"` field is `[]`. The 5 skills (`attention-state`, `notification-score`, `focus-mode-status`, `notification-history`, `notification-content-search`) are configured in `bundles/cortex-a2a.md` under `hooks: hooks-a2a-server: config: agent_skills:` but the card builder in `amplifier-module-hooks-a2a-server` isn't receiving them. Investigate the `build_agent_card()` function in `/home/bkrabach/repos/amplifier-bundle-a2a/modules/hooks-a2a-server/amplifier_module_hooks_a2a_server/card.py` and trace how config flows from bundle → hook mount → card builder.
+1. ~~**A2A agent card skills list is empty**~~ — MOOT: `bundles/cortex-a2a.md` (the card this bug lived in) was removed per cortex-x12e/SCOPING-a2a.md. Left here only so a reader of this historical P0 list doesn't go looking for a bundle that no longer exists.
 
 2. **Test A2A end-to-end with a peer agent** — Start one of the other agents (ai-os is the most important peer) and verify:
    - Cortex can send a message to ai-os via `a2a(operation="send", agent="ai-os", message="...")`
