@@ -30,6 +30,11 @@ PACK_HOME="${CORTEX_SHARE}/packs/tmux-kit"
 HUB_HOME="${CORTEX_SHARE}/hub"
 DIST_DIR="${CORTEX_SHARE}/dist"
 LOG_DIR="${CORTEX_STATE}/logs"
+# amplifier-dot-runner's own uv-tool venv -- NOT under CORTEX_SHARE. This is
+# what drumbeat's amplifier-agent worker draws its bundled agent files from
+# (cortex-90ei); it is rebuilt independently of everything else in this file,
+# on whatever Python uv's default resolves to at the time.
+DOT_RUNNER_HOME="${HOME}/.local/share/uv/tools/amplifier-dot-runner"
 OPENAI_KEY_FILE="${GATEWAY_CONF}/openai_key"
 GATEWAY_CONFIG_JSON="${GATEWAY_CONF}/config.json"
 
@@ -168,6 +173,37 @@ cmd_doctor() {
   fi
   if [ -x "${DRUMBEAT_HOME}/venv/bin/drumbeat" ]; then pass drumbeat "${DRUMBEAT_HOME}/venv/bin/drumbeat"
   else fail drumbeat "not installed"; note "remedy: CORTEX_DRUMBEAT_SRC=~/dev/amplifier-attention-manager/drumbeat ./install.sh"; fi
+
+  # dot-runner venv: interpreter runs, key module imports, agents dir resolves.
+  # A venv rebuilt onto a different Python minor version (uv tool install picks
+  # whatever's current) moves its lib/pythonX.Y directory -- so the lib dir is
+  # found by GLOB here, never a hardcoded minor version. This is the check that
+  # should have caught the 08:37Z-11:02Z outage (40+ failed automation runs)
+  # BEFORE the next scheduled run, instead of after it.
+  if [ -x "${DOT_RUNNER_HOME}/bin/python" ]; then
+    local lib_dir agents_dir agent_count
+    lib_dir=$(ls -d "${DOT_RUNNER_HOME}"/lib/python3.* 2>/dev/null | head -1)
+    if [ -z "$lib_dir" ]; then
+      fail "dot-runner venv" "no lib/python3.* under ${DOT_RUNNER_HOME} -- venv looks broken or mid-rebuild"
+      note "remedy: uv tool install --force amplifier-dot-runner"
+    elif ! "${DOT_RUNNER_HOME}/bin/python" -c 'import amplifier_agent_lib' >/dev/null 2>&1; then
+      fail "dot-runner venv" "interpreter runs, but amplifier_agent_lib does not import"
+      note "remedy: uv tool install --force amplifier-dot-runner"
+    else
+      agents_dir="${lib_dir}/site-packages/amplifier_agent_lib/bundle/agents"
+      agent_count=$(ls -1 "$agents_dir" 2>/dev/null | grep -c '\.md$')
+      if [ -d "$agents_dir" ] && [ "$agent_count" -gt 0 ]; then
+        pass "dot-runner venv" "$(basename "$lib_dir"), agents dir resolves (${agent_count} agent file(s))"
+      else
+        fail "dot-runner venv" "agents dir missing or empty: ${agents_dir}"
+        note "remedy: uv tool install --force amplifier-dot-runner"
+      fi
+    fi
+  else
+    fail "dot-runner venv" "not installed at ${DOT_RUNNER_HOME}"
+    note "remedy: uv tool install amplifier-dot-runner"
+    note "        a broken/missing dot-runner venv silently fails every scheduled automation"
+  fi
   if [ -f "${HUB_HOME}/serve.py" ]; then pass hub "${HUB_HOME}/serve.py"
   else fail hub "not installed"; note "remedy: re-run install.sh"; fi
   if [ -d "$MIND_HOME" ] && [ -n "$(ls -A "$MIND_HOME" 2>/dev/null)" ]; then pass mind "$MIND_HOME"
